@@ -21,10 +21,16 @@ if _settings.db_url.startswith("sqlite"):
 
     @event.listens_for(engine, "connect")
     def _sqlite_pragmas(dbapi_conn, _):  # noqa: ANN001
+        dbapi_conn.isolation_level = None  # let SQLAlchemy emit BEGIN so SAVEPOINTs work (pysqlite quirk)
         cur = dbapi_conn.cursor()
         cur.execute("PRAGMA foreign_keys=ON")
         cur.execute("PRAGMA journal_mode=WAL")
+        cur.execute("PRAGMA busy_timeout=10000")
         cur.close()
+
+    @event.listens_for(engine, "begin")
+    def _sqlite_begin(conn):  # noqa: ANN001
+        conn.exec_driver_sql("BEGIN")
 
 
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)

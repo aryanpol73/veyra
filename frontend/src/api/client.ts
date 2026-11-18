@@ -45,6 +45,7 @@ export interface CompetitorIn {
   careers_provider?: "greenhouse" | "lever" | null;
   careers_token?: string | null;
   news_query?: string | null;
+  feed_urls?: string[];
   notes?: string | null;
 }
 
@@ -52,4 +53,35 @@ export interface Competitor extends CompetitorIn {
   id: number;
   created_at: string;
   sources: Source[];
+}
+
+export interface Signal {
+  id: number;
+  competitor_id: number;
+  competitor: string | null;
+  source_id: number | null;
+  type: string;
+  category: "pricing" | "product" | "hiring" | "market" | "early_signal";
+  summary: string;
+  old_value: string | null;
+  new_value: string | null;
+  evidence_url: string;
+  observed_at: string;
+  detected_at: string;
+  origin_group: string;
+  event_confidence: number;
+  priority: "critical" | "high" | "medium" | "low";
+  raw: Record<string, any>;
+  synthetic: boolean;
+  replay: boolean;
+}
+
+export interface CycleStatus {
+  running: boolean;
+  started_at: string | null;
+  finished_at: string | null;
+  current: string | null;
+  signals_created: number;
+  errors: number;
+  sources: { competitor: string; source_type: string; url: string; status: string; signals: number; error?: string }[];
 }

@@ -3,6 +3,7 @@ import { NavLink, Route, Routes } from "react-router-dom";
 import Overview from "./pages/Overview";
 import Competitors from "./pages/Competitors";
 import Placeholder from "./pages/Placeholder";
+import Feed from "./pages/Feed";
 
 const NAV = [
   { to: "/", label: "Overview" },
@@ -67,7 +68,7 @@ export default function App() {
           <Route path="/" element={<Overview />} />
           <Route path="/competitors" element={<Competitors />} />
           <Route path="/hypotheses" element={<Placeholder title="Hypotheses" phase={2} what="Persistent hypotheses with evidence for/against, belief timeline, skeptic challenges and investigation logs." />} />
-          <Route path="/feed" element={<Placeholder title="Intelligence Feed" phase={1} what="Typed, evidence-linked signals from pricing pages, jobs, news and early signals (CT logs, sitemaps)." />} />
+          <Route path="/feed" element={<Feed />} />
           <Route path="/ask" element={<Placeholder title="Ask Argus" phase={4} what="Chat grounded in the database via tool calls, with cited sources." />} />
           <Route path="/evaluation" element={<Placeholder title="Evaluation" phase={3} what="Leakage-safe replay backtest: precision, recall, lead time, Brier score, calibration with Wilson intervals." />} />
           <Route path="/reports" element={<Placeholder title="Reports" phase={4} what="Daily brief archive: what happened, why it matters, what to do." />} />

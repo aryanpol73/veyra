@@ -34,14 +34,27 @@ cd backend && .venv/Scripts/python -m pytest -q
 ## Status
 
 - [x] Phase 0: FastAPI, SQLAlchemy schema (all 15 tables), seed, provider-agnostic LLM client, React shell
-- [ ] Phase 1: collectors and semantic change detection
+- [x] Phase 1: collectors (pages, jobs, news/blog feeds, CT + sitemap), semantic diff, priority rules, dedup, Intelligence Feed
 - [ ] Phase 2: agent core (strategist / investigator / skeptic / judge) and belief engine
 - [ ] Phase 3: replay backtest and evaluation
 - [ ] Phase 4: chat, briefs, overview
 - [ ] Phase 5: demo hardening
+
+## Data sources (all public, robots.txt respected, >=2 s per host, cached)
+
+| Source | Endpoint | Notes |
+|---|---|---|
+| Pages | competitor pricing / homepage / changelog | trafilatura main text; first run diffs against a Wayback capture >= 30 days old |
+| Jobs | Greenhouse / Lever public JSON | broad terms like "AI" count only in job titles (company blurbs mention AI everywhere) |
+| News | Bing News RSS + company blog/changelog feeds | Google News RSS is robots-disallowed, so not used |
+| Early signals | Cert Spotter CT API, `sitemap.xml` | crt.sh is robots-disallowed; Cert Spotter allows ~10 anonymous req/hour |
+
+Without an LLM key, signals are labelled by transparent rules and badged "rule-classified".
 
 ## Limitations (kept honest; expanded as phases land)
 
 - Confidence scores are an **uncalibrated heuristic** until the Evaluation page shows calibration.
 - CT-log and sitemap signals are **leads, not proof**.
 - Free-tier Groq rate limits constrain how many agent steps run per cycle.
+- Hiring-spike z-scores come from posting dates on the *current* board; filled roles disappear, so older weeks are under-counted.
+- A "new subdomain" on the first run means every live certificate for it is < 21 days old; renewals can occasionally look new.

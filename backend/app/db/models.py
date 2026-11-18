@@ -26,6 +26,7 @@ class Competitor(Base):
     careers_provider: Mapped[str | None] = mapped_column(String(20))  # greenhouse | lever | None
     careers_token: Mapped[str | None] = mapped_column(String(120))
     news_query: Mapped[str | None] = mapped_column(String(255))
+    feed_urls: Mapped[list[Any]] = mapped_column(JSON, default=list)  # company blog / changelog RSS/Atom
     notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 

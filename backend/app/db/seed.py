@@ -1,11 +1,15 @@
-"""Seed 3 demo competitors (public SaaS with public Greenhouse job boards, verified 2026-11-18).
+"""Seed 3 demo competitors (public SaaS with public Greenhouse job boards and blog feeds, verified 2026-11-18).
 
 Run:  python -m app.db.seed           (idempotent; skips existing names)
 Edit COMPETITORS to track different companies. careers_provider: greenhouse | lever.
 """
 from __future__ import annotations
 
+from urllib.parse import quote_plus
+
 from sqlalchemy import select
+
+from app.collectors.early_signals import ct_url
 
 from app.db.models import Competitor, Source
 from app.db.session import init_db, session_scope
@@ -19,6 +23,7 @@ COMPETITORS = [
         "careers_provider": "greenhouse",
         "careers_token": "vercel",
         "news_query": "Vercel",
+        "feed_urls": ["https://vercel.com/atom"],
     },
     {
         "name": "Figma",
@@ -28,15 +33,17 @@ COMPETITORS = [
         "careers_provider": "greenhouse",
         "careers_token": "figma",
         "news_query": "Figma",
+        "feed_urls": ["https://www.figma.com/blog/feed/atom.xml"],
     },
     {
         "name": "Airtable",
         "domain": "airtable.com",
         "pricing_url": "https://www.airtable.com/pricing",
-        "product_urls": ["https://www.airtable.com/", "https://www.airtable.com/whats-new"],
+        "product_urls": ["https://www.airtable.com/"],
         "careers_provider": "greenhouse",
         "careers_token": "airtable",
         "news_query": "Airtable",
+        "feed_urls": [],
     },
 ]
 
@@ -52,10 +59,12 @@ def sources_for(c: Competitor) -> list[Source]:
                           url=f"https://boards-api.greenhouse.io/v1/boards/{c.careers_token}/jobs?content=true"))
     elif c.careers_provider == "lever" and c.careers_token:
         out.append(Source(source_type="jobs", url=f"https://api.lever.co/v0/postings/{c.careers_token}?mode=json"))
-    if c.news_query:
+    if c.news_query:  # Bing News RSS (Google News RSS is robots-disallowed)
         out.append(Source(source_type="news",
-                          url=f"https://news.google.com/rss/search?q={c.news_query.replace(' ', '+')}&hl=en-US&gl=US&ceid=US:en"))
-    out.append(Source(source_type="early_signal", url=f"https://crt.sh/?q=%25.{c.domain}&output=json"))
+                          url=f"https://www.bing.com/news/search?q={quote_plus(c.news_query)}&format=rss"))
+    for feed in c.feed_urls or []:
+        out.append(Source(source_type="news", url=feed))
+    out.append(Source(source_type="early_signal", url=ct_url(c.domain)))
     out.append(Source(source_type="early_signal", url=f"https://{c.domain}/sitemap.xml"))
     return out
 
