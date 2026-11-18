@@ -182,7 +182,7 @@ def classify_rules(ch: PageChange, page_kind: str) -> list[ClassifiedEvent]:
 
 def classify(ch: PageChange, page_kind: str, competitor: str) -> tuple[list[ClassifiedEvent], str]:
     """Returns (events, classified_by)."""
-    if get_settings().llm_configured:
+    if get_settings().llm_configured and get_settings().classify_with_llm:
         user = prompts.SIGNAL_CLASSIFIER_USER.format(
             competitor=competitor, page_kind=page_kind, removed=_clip(ch.removed) or "(none)", added=_clip(ch.added) or "(none)")
         out = llm.complete_json(role="fast", system=prompts.SIGNAL_CLASSIFIER, user=user,

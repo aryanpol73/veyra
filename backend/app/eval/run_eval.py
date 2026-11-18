@@ -30,6 +30,9 @@ def main() -> int:
     ap.add_argument("--end", default=REPLAY_END.date().isoformat())
     ap.add_argument("--no-agents", action="store_true", help="ingest only (no LLM): checks the pipeline")
     ap.add_argument("--synthetic", action="store_true", help="also run the synthetic injection test")
+    ap.add_argument("--classify", choices=["rules", "llm"], default="rules",
+                    help="signal classification in replay: deterministic rules (default; saves ~45%% of tokens and removes "
+                         "a contamination channel) or the LLM classifier the live system uses")
     a = ap.parse_args()
 
     # Point the app at a fresh replay DB BEFORE importing anything that creates the engine.
@@ -50,6 +53,7 @@ def main() -> int:
     start = datetime.fromisoformat(a.start).replace(tzinfo=timezone.utc)
     end = datetime.fromisoformat(a.end).replace(tzinfo=timezone.utc)
     s = get_settings()
+    s.classify_with_llm = a.classify == "llm"
     print(f"replay {a.mode}: {start:%Y-%m-%d} -> {end:%Y-%m-%d}, db {replay_db.name}, LLM "
           f"{s.llm_provider}/{s.model_strong if s.llm_configured else 'NOT CONFIGURED'}", flush=True)
     logs = run_replay(monthly_steps(start, end), mode="none" if a.mode == "post_cutoff" else a.mode,
@@ -60,10 +64,17 @@ def main() -> int:
         events = [e for e in events if e.public_date > MODEL_CUTOFF]
     with SessionLocal() as db:
         metrics = M.evaluate(db, events, (start, end))
+        from sqlalchemy import select as _select
+
+        from app.db.models import AgentRun
+
+        failed = db.execute(_select(AgentRun.kind, AgentRun.error).where(AgentRun.error.is_not(None))).all()
     result = M.to_dict(metrics)
     result["config"].update(mode=a.mode, model_strong=s.model_strong, model_fast=s.model_fast, provider=s.llm_provider,
                             model_cutoff=MODEL_CUTOFF.isoformat(), replay_db=replay_db.name, agents=not a.no_agents,
-                            possibly_contaminated=a.mode == "none",
+                            possibly_contaminated=a.mode == "none", classification=a.classify,
+                            llm_errors=len(failed), llm_error_kinds=sorted({k for k, _ in failed}),
+                            degraded=any(k in ("strategist", "skeptic", "skeptic_verdict") for k, _ in failed),
                             steps=[l["as_of"] for l in logs], tokens=sum((ag.get("tokens") or 0) for l in logs for ag in l["agents"]))
     if a.synthetic:
         result["synthetic_test"] = synthetic_injection()

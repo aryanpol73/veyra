@@ -235,7 +235,7 @@ def classify_news_rules(title: str, kind: str) -> str:
 def classify_news(comp: Competitor, items: list[dict]) -> tuple[dict[int, NewsLabel], str]:
     if not items:
         return {}, "rules"
-    if get_settings().llm_configured:
+    if get_settings().llm_configured and get_settings().classify_with_llm:
         labels: dict[int, NewsLabel] = {}
         for start in range(0, len(items), 25):
             chunk = items[start:start + 25]

@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     llm_fast: str = ""  # classification / stance labeling
     llm_timeout_s: float = 60.0
     llm_tpm_limit: int = 0  # client-side tokens/minute throttle; 0 = auto (8000 for groq free tier)
+    llm_max_wait_s: float = 2700  # wait up to 45 min on a provider rate limit (e.g. Groq daily cap) before failing
     llm_max_tokens: int = 4096  # reasoning models (gpt-oss) spend part of this on hidden reasoning
 
     # --- storage ---
@@ -72,6 +73,7 @@ class Settings(BaseSettings):
     max_skeptic_per_cycle: int = 2  # per competitor
     skeptic_threshold: float = 0.6  # challenge before a hypothesis is raised to likely / alerted
     prediction_threshold: float = 0.6  # register falsifiable predictions at or above this
+    classify_with_llm: bool = True  # page/news classification; the backtest can switch to deterministic rules
     investigator_role: str = "fast"  # "fast" saves strong-model quota on free tiers; set "strong" for quality
 
     # --- scheduling ---

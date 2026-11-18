@@ -117,6 +117,8 @@ export default function Evaluation() {
             <span>Run #{run!.id} · {new Date(run!.created_at).toLocaleString()} · window {c.window?.[0]?.slice(0, 10)} to {c.window?.[1]?.slice(0, 10)}</span>
             <span>· {c.provider}/{c.model_strong} · {c.tokens?.toLocaleString()} tokens</span>
             {c.possibly_contaminated && <Badge tone="warn">possibly contaminated</Badge>}
+            {c.degraded && <Badge tone="bad">degraded: {c.llm_errors} LLM call(s) failed ({(c.llm_error_kinds ?? []).join(", ")})</Badge>}
+            {c.classification === "rules" && <Badge tone="muted" >signal classification: rules (live system uses the LLM)</Badge>}
             {c.agents === false && <Badge tone="warn">ingest only, no agents</Badge>}
             {mode === "post_cutoff" && <Badge tone="info">model cutoff {c.model_cutoff}: {m.n_events} of {c.events_total} events after it</Badge>}
           </div>

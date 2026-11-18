@@ -36,7 +36,7 @@ cd backend && .venv/Scripts/python -m pytest -q
 - [x] Phase 0: FastAPI, SQLAlchemy schema (all 15 tables), seed, provider-agnostic LLM client, React shell
 - [x] Phase 1: collectors (pages, jobs, news/blog feeds, CT + sitemap), semantic diff, priority rules, dedup, Intelligence Feed
 - [x] Phase 2: belief engine, LangGraph agents (strategist -> investigator -> skeptic -> judge), alerts, predictions, Hypotheses page
-- [ ] Phase 3: replay backtest and evaluation
+- [x] Phase 3: frozen Wayback dataset, leakage-safe replay, ground truth, metrics, contamination modes, Evaluation page
 - [ ] Phase 4: chat, briefs, overview
 - [ ] Phase 5: demo hardening
 
@@ -58,6 +58,29 @@ claims. Every LLM call and tool call is logged to `agent_runs`.
 Confidence = sigmoid(logit(prior) + sum(stance x relevance x reliability x event_confidence x recency x independence x K)),
 with independence 1.0 for the strongest item in an origin group and 0.2 for the rest, a per-category cap, and skeptic adjustments.
 
+## Evaluation (pilot backtest)
+
+```bash
+cd backend
+.venv/Scripts/python -m app.eval.dataset                 # (re)build the frozen dataset from the Wayback Machine
+.venv/Scripts/python -m app.eval.run_eval --mode masked --synthetic
+.venv/Scripts/python -m app.eval.run_eval --mode none    # flagged "possibly contaminated"
+```
+
+- **Data:** `data/replay/` holds 107 monthly Wayback captures (Jan-Nov 2026) of each competitor's pricing, homepage and
+  changelog pages plus blog feeds. There's no historical jobs, CT or news-search data, so those sources are off in replay.
+- **Replay:** the same detectors and agent graph step `as_of` monthly from 2026-05-01 to 2026-11-18 in a separate SQLite
+  file. Tools filter by `as_of`, live fetches raise, and `tests/test_replay.py` asserts no post-`as_of` data leaks.
+- **Ground truth:** `backend/app/eval/ground_truth.yaml` has 15 real events, each dated by an official announcement. It was
+  labelled and committed (`2be03ce`) before the first replay. Matching is keyword-on-statement, defined in the file.
+- **Metrics:** precision, recall, lead time, false-positive rate, false alarms per competitor-month, Brier scores, and
+  3-bin calibration with Wilson 95% intervals (`backend/app/eval/metrics.py`).
+- **Contamination:** `masked` replaces company and product names with tokens in every prompt, including classification.
+  `none` is unmasked. `post_cutoff` keeps only events after the model's training cutoff; gpt-oss's cutoff is mid-2024,
+  so on this 2026 dataset it keeps every event. A synthetic injection test checks that the machinery behaves as designed
+  (independent evidence should beat one press release counted three times); it is labelled synthetic and measures nothing
+  about real-world accuracy.
+
 ## Data sources (all public, robots.txt respected, >=2 s per host, cached)
 
 | Source | Endpoint | Notes |
@@ -76,4 +99,6 @@ Without an LLM key, signals are labelled by transparent rules and badged "rule-c
 - Free-tier Groq rate limits constrain how many agent steps run per cycle (about 15-27k tokens per competitor per cycle).
 - Groq's model lineup changes; if a model 404s, set `LLM_STRONG` / `LLM_FAST` in `.env`.
 - Hiring-spike z-scores come from posting dates on the *current* board; filled roles disappear, so older weeks are under-counted.
+- The evaluation is a pilot: 15 events, one labeller, monthly resolution (lead times are +/- ~30 days), keyword matching.
+- Masking hides names, not facts; a model may still recognise a company from product details.
 - A "new subdomain" on the first run means every live certificate for it is < 21 days old; renewals can occasionally look new.

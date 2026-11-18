@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Literal, TypeVar
 
-from openai import BadRequestError, OpenAI
+from openai import BadRequestError, OpenAI, RateLimitError
 from pydantic import BaseModel, ValidationError
 
 from app.config import get_settings
@@ -110,7 +110,11 @@ def complete_json(
     raw = ""
     for attempt in range(2):
         try:
-            throttle(sum(len(m["content"]) for m in messages) // 4 + 1500)
+            prompt_est = sum(len(m["content"]) for m in messages) // 3  # conservative chars->tokens
+            max_out = get_settings().llm_max_tokens
+            if _tpm_limit():  # Groq counts max_tokens toward the per-minute limit: keep prompt + reservation under it
+                max_out = max(800, min(max_out, int(_tpm_limit() * 0.95) - prompt_est))
+            throttle(prompt_est + max_out)
             t0 = time.perf_counter()
             extra = {}
             if "gpt-oss" in model_for(role) and get_settings().llm_provider == "groq":
@@ -119,7 +123,7 @@ def complete_json(
                 model=model_for(role),
                 messages=messages,
                 temperature=temperature,
-                max_tokens=get_settings().llm_max_tokens,
+                max_tokens=max_out,
                 response_format={"type": "json_object"},
                 extra_body=extra or None,
             )
@@ -136,6 +140,15 @@ def complete_json(
             log_agent_run(kind, started, {"user": user[:4000]}, parsed.model_dump(mode="json"),
                           tokens_in=tokens_in, tokens_out=tokens_out, model=model_for(role))
             return parsed
+        except RateLimitError as e:
+            # Daily (TPD) limits come back as 429 with "try again in 9m58s": wait it out instead of degrading results.
+            wait = _retry_after_s(str(e))
+            if wait is None or wait > get_settings().llm_max_wait_s or attempt == 1:
+                last_err = f"RateLimitError: {str(e)[:300]}"
+                break
+            log.warning("llm %s rate-limited (%s); waiting %.0fs", kind, "daily" if "per day" in str(e) else "minute", wait)
+            time.sleep(wait + 2)
+            last_err = "rate limited; retried after wait"
         except BadRequestError as e:
             # Tool-trained models (gpt-oss) sometimes emit a native function call instead of JSON; Groq rejects it.
             if "tool_use_failed" not in str(e) or attempt == 1:
@@ -169,6 +182,18 @@ def _tpm_limit() -> int:
     return s.llm_tpm_limit or (8000 if s.llm_provider == "groq" else 0)
 
 
+def _retry_after_s(msg: str) -> float | None:
+    """Parse Groq's "try again in 9m58.3s" / "929ms" / "1h2m3s" into seconds."""
+    ms = re.search(r"try again in ([\d.]+)ms", msg)
+    if ms:
+        return float(ms.group(1)) / 1000
+    m = re.search(r"try again in (?:(\d+)h)?(?:(\d+)m)?([\d.]+)?s?", msg)
+    if not m or not any(m.groups()):
+        return None
+    h, mnt, sec = (float(x) if x else 0.0 for x in m.groups())
+    return h * 3600 + mnt * 60 + sec
+
+
 def record_usage(tokens: int) -> None:
     with _usage_lock:
         _usage.append((time.monotonic(), tokens))
@@ -179,7 +204,7 @@ def throttle(estimate: int) -> None:
     limit = _tpm_limit()
     if not limit:
         return
-    estimate = min(estimate, int(limit * 0.9))
+    estimate = min(estimate, int(limit * 0.95))
     while True:
         with _usage_lock:
             cutoff = time.monotonic() - 60

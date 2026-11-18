@@ -61,10 +61,10 @@ def run_strategist(db: Session, comp: Competitor, now: datetime, as_of: datetime
             f"NEW SIGNALS:\n{sig_lines}\n\nOPEN HYPOTHESES:\n{hyp_lines}\n\nMEMORY:\n{memory}\n{last_note or ''}")
     res = llm.complete_json(role="strong", system=prompts.STRATEGIST.format(competitor=comp.name), user=user,
                             schema=StrategistOut, kind="strategist")
-    _advance_cursor(db, comp, max_id, now, res.memory_note if res else None)
-    if res is None:
+    if res is None:  # don't advance the cursor: these signals get reviewed next cycle instead of being lost
         out["error"] = "strategist output invalid or LLM unavailable"
         return out
+    _advance_cursor(db, comp, max_id, now, res.memory_note)
 
     shown = {s.id: s for s in signals}
     by_hyp = {h.id: h for h in open_hyps}

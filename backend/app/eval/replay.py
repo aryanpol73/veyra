@@ -97,10 +97,12 @@ def setup_replay_db() -> None:
             db.add(c)
 
 
-def ingest_step(db: Session, as_of: datetime, store_: ReplayStore) -> dict[int, list[int]]:
-    """Feed every frozen capture with prev < observed_at <= as_of through snapshot + detectors."""
+def ingest_step(db: Session, as_of: datetime, store_: ReplayStore, mode: str = "none") -> dict[int, list[int]]:
+    """Feed every frozen capture with prev < observed_at <= as_of through snapshot + detectors.
+    In masked mode the classifier prompts are masked too (not just the agents)."""
     before = db.scalar(select(func.max(Signal.id))) or 0
     for comp in db.scalars(select(Competitor)).all():
+        llm.set_mask(ALIASES.get(comp.name) if mode == "masked" else None)
         for src in [s for s in comp.sources if s.active]:
             prev = last_snapshot(db, src.id, as_of)
             for cap in store_.between(comp.name, src.url, _aware(prev.observed_at) if prev else None, as_of):
@@ -118,6 +120,7 @@ def ingest_step(db: Session, as_of: datetime, store_: ReplayStore) -> dict[int, 
                     persist(db, comp.id, src.id, drafts, replay=True, detected_at=as_of)
                 elif changed and src.source_type == "news":
                     det.detect_news(db, comp, src, obs, prev, cur, replay=True, detected_at=as_of)
+    llm.set_mask(None)
     db.flush()
     new: dict[int, list[int]] = {}
     for sid, cid in db.execute(select(Signal.id, Signal.competitor_id).where(Signal.id > before)).all():
@@ -148,7 +151,7 @@ def run_replay(steps: list[datetime], *, mode: str = "masked", agents: bool = Tr
     logs = []
     for as_of in steps:
         with session_scope() as db, audit_into(db):
-            new = ingest_step(db, as_of, store_)
+            new = ingest_step(db, as_of, store_, mode)
             db.commit()
             step = {"as_of": as_of.isoformat(), "new_signals": {k: len(v) for k, v in new.items()}, "agents": []}
             if agents and s.llm_configured:
