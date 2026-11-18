@@ -19,6 +19,7 @@ CATEGORY_OF = {
     "acquisition": "market", "news_mention": "market",
     "hiring_spike": "hiring", "hiring_new_location": "hiring", "hiring_tech_keyword": "hiring",
     "new_subdomain": "early_signal", "new_sitemap_path": "early_signal",
+    "investigation_finding": "product",  # category overridden by the hypothesis it was found for
 }
 
 # Thresholds are deliberately simple and visible; tune here.

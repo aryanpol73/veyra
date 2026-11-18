@@ -85,3 +85,63 @@ export interface CycleStatus {
   errors: number;
   sources: { competitor: string; source_type: string; url: string; status: string; signals: number; error?: string }[];
 }
+
+export interface HypothesisSummary {
+  id: number;
+  competitor_id: number;
+  competitor: string;
+  statement: string;
+  category: string;
+  status: "emerging" | "plausible" | "likely" | "confirmed" | "refuted" | "stale";
+  confidence: number;
+  band: string;
+  prior: number;
+  created_at: string;
+  updated_at: string;
+  closed_at: string | null;
+  evidence_for: number;
+  evidence_against: number;
+  replay: boolean;
+  synthetic: boolean;
+  score_label: string;
+}
+
+export interface HypothesisDetail extends HypothesisSummary {
+  testable_predictions: { claim: string; horizon_days: number; signal_types: string[]; keywords: string[] }[];
+  evidence_needed: string[];
+  evidence: {
+    id: number;
+    stance: "supports" | "contradicts" | "neutral";
+    relevance: number;
+    reliability: number;
+    independence_weight: number;
+    contribution: number;
+    rationale: string;
+    added_by: string;
+    signal: Signal;
+  }[];
+  belief_history: { ts: string; confidence: number; delta: number; reason: string; evidence_ids: number[] }[];
+  challenges: { id: number; alternative: string; discriminating_test: string; test_result: string | null; verdict: string; created_at: string }[];
+  investigations: {
+    id: number;
+    started_at: string;
+    plan: string[];
+    actions: { tool: string; args: Record<string, unknown>; result: string }[];
+    findings: { signal_id?: number; url?: string; summary: string; stance?: string; relevance?: number; dropped?: boolean; why?: string }[];
+    stop_reason: string | null;
+    tokens: number;
+  }[];
+  predictions: { id: number; claim: string; made_at: string; horizon_days: number; resolve_by: string; confidence_at_creation: number; outcome: string; resolved_at: string | null }[];
+}
+
+export interface AlertItem {
+  id: number;
+  competitor: string;
+  hypothesis_id: number | null;
+  signal_id: number | null;
+  priority: string;
+  title: string;
+  body: string;
+  created_at: string;
+  feedback: string | null;
+}

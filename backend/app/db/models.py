@@ -232,3 +232,12 @@ class UserFeedback(Base):
     useful: Mapped[bool] = mapped_column(Boolean)
     note: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AgentCursor(Base):
+    """Highest signal id the strategist has already reviewed, per competitor (avoids re-reading the feed)."""
+    __tablename__ = "agent_cursors"
+    competitor_id: Mapped[int] = mapped_column(ForeignKey("competitors.id", ondelete="CASCADE"), primary_key=True)
+    last_signal_id: Mapped[int] = mapped_column(Integer, default=0)
+    memory_note: Mapped[str | None] = mapped_column(Text)  # strategist's one-line note for the next cycle
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

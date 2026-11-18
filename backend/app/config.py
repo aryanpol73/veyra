@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     llm_strong: str = ""  # strategist / skeptic / chat / reporter
     llm_fast: str = ""  # classification / stance labeling
     llm_timeout_s: float = 60.0
-    llm_max_tokens: int = 2048
+    llm_max_tokens: int = 4096  # reasoning models (gpt-oss) spend part of this on hidden reasoning
 
     # --- storage ---
     db_url: str = f"sqlite:///{(DATA_DIR / 'veyra.db').as_posix()}"
@@ -66,6 +66,12 @@ class Settings(BaseSettings):
     investigator_min_delta: float = 0.02  # stop when evidence moves confidence less than this
     uncertain_band: tuple[float, float] = (0.35, 0.80)
     strategist_max_new_hypotheses: int = 2
+    strategist_max_signals: int = 40  # per competitor per cycle, highest priority first
+    max_investigations_per_cycle: int = 2  # per competitor
+    max_skeptic_per_cycle: int = 2  # per competitor
+    skeptic_threshold: float = 0.6  # challenge before a hypothesis is raised to likely / alerted
+    prediction_threshold: float = 0.6  # register falsifiable predictions at or above this
+    investigator_role: str = "fast"  # "fast" saves strong-model quota on free tiers; set "strong" for quality
 
     # --- scheduling ---
     scheduler_enabled: bool = False

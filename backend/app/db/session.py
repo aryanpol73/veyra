@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextvars
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -74,13 +75,34 @@ def log_agent_run(
     error: str | None = None,
     model: str | None = None,
 ) -> int:
-    """Audit trail for every agent/LLM call. Cost is 0 on free Groq/Ollama tiers; tokens still logged."""
+    """Audit trail for every agent/LLM call. Cost is 0 on free Groq/Ollama tiers; tokens still logged.
+
+    Inside a cycle the row is written through the cycle's own session (see `audit_into`): SQLite can't
+    let a second connection write while the cycle's transaction is open."""
+    run = AgentRun(
+        kind=kind, started_at=started_at, ended_at=datetime.now(timezone.utc),
+        input=input, output=output, tool_calls=tool_calls or [], model=model,
+        tokens_in=tokens_in, tokens_out=tokens_out, cost_usd=0.0, error=error,
+    )
+    shared = _audit_session.get()
+    if shared is not None:
+        shared.add(run)
+        shared.flush()
+        return run.id
     with session_scope() as db:
-        run = AgentRun(
-            kind=kind, started_at=started_at, ended_at=datetime.now(timezone.utc),
-            input=input, output=output, tool_calls=tool_calls or [], model=model,
-            tokens_in=tokens_in, tokens_out=tokens_out, cost_usd=0.0, error=error,
-        )
         db.add(run)
         db.flush()
         return run.id
+
+
+_audit_session: contextvars.ContextVar[Session | None] = contextvars.ContextVar("audit_session", default=None)
+
+
+@contextmanager
+def audit_into(db: Session) -> Iterator[None]:
+    """Route log_agent_run() into `db` for the duration (used by the cycle runner)."""
+    token = _audit_session.set(db)
+    try:
+        yield
+    finally:
+        _audit_session.reset(token)

@@ -35,10 +35,28 @@ cd backend && .venv/Scripts/python -m pytest -q
 
 - [x] Phase 0: FastAPI, SQLAlchemy schema (all 15 tables), seed, provider-agnostic LLM client, React shell
 - [x] Phase 1: collectors (pages, jobs, news/blog feeds, CT + sitemap), semantic diff, priority rules, dedup, Intelligence Feed
-- [ ] Phase 2: agent core (strategist / investigator / skeptic / judge) and belief engine
+- [x] Phase 2: belief engine, LangGraph agents (strategist -> investigator -> skeptic -> judge), alerts, predictions, Hypotheses page
 - [ ] Phase 3: replay backtest and evaluation
 - [ ] Phase 4: chat, briefs, overview
 - [ ] Phase 5: demo hardening
+
+## How the agent core works
+
+Each cycle, per competitor, a LangGraph graph runs `strategist -> judge -> investigator -> judge -> skeptic -> judge -> alert policy`.
+
+| Step | LLM? | What it does |
+|---|---|---|
+| Strategist | strong | links new signals to hypotheses (stance + relevance, cited by ID), proposes at most 2 new ones with falsifiable predictions, flags same-event signals |
+| Investigator | fast | bounded tool loop on hypotheses in the uncertain band (0.35-0.80): max 6 tool calls, 25 fetches per cycle, token budget; stops on convergence |
+| Skeptic | strong | at >= 0.60: >= 2 concrete mundane alternatives, each with a tool test that is **actually run**; strict verdict per alternative |
+| Judge | no | deterministic belief engine (`backend/app/belief/engine.py`), status, alert policy, prediction registry |
+
+Guardrails enforced in code, not prompts: evidence may cite only signal IDs / URLs a tool returned; a re-found URL joins the
+existing signal's origin group; nothing becomes "likely" before the skeptic has challenged it; alerts never fire on unchallenged
+claims. Every LLM call and tool call is logged to `agent_runs`.
+
+Confidence = sigmoid(logit(prior) + sum(stance x relevance x reliability x event_confidence x recency x independence x K)),
+with independence 1.0 for the strongest item in an origin group and 0.2 for the rest, a per-category cap, and skeptic adjustments.
 
 ## Data sources (all public, robots.txt respected, >=2 s per host, cached)
 
@@ -55,6 +73,7 @@ Without an LLM key, signals are labelled by transparent rules and badged "rule-c
 
 - Confidence scores are an **uncalibrated heuristic** until the Evaluation page shows calibration.
 - CT-log and sitemap signals are **leads, not proof**.
-- Free-tier Groq rate limits constrain how many agent steps run per cycle.
+- Free-tier Groq rate limits constrain how many agent steps run per cycle (about 15-27k tokens per competitor per cycle).
+- Groq's model lineup changes; if a model 404s, set `LLM_STRONG` / `LLM_FAST` in `.env`.
 - Hiring-spike z-scores come from posting dates on the *current* board; filled roles disappear, so older weeks are under-counted.
 - A "new subdomain" on the first run means every live certificate for it is < 21 days old; renewals can occasionally look new.

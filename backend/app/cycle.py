@@ -11,12 +11,13 @@ import traceback
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.collectors.base import FetchError, RobotsBlocked, fetcher
 from app.collectors.registry import COLLECTORS
-from app.db.models import Competitor, Source
-from app.db.session import log_agent_run, session_scope
+from app.config import get_settings
+from app.db.models import Competitor, Signal, Source
+from app.db.session import audit_into, log_agent_run, session_scope
 from app.detect import detectors as det
 from app.detect.normalize import persist
 from app.detect.snapshot import last_snapshot, store
@@ -24,8 +25,8 @@ from app.detect.snapshot import last_snapshot, store
 log = logging.getLogger("veyra.cycle")
 
 _lock = threading.Lock()
-STATUS: dict[str, Any] = {"running": False, "started_at": None, "finished_at": None, "current": None,
-                          "sources": [], "signals_created": 0, "errors": 0, "run_id": None}
+STATUS: dict[str, Any] = {"running": False, "started_at": None, "finished_at": None, "current": None, "mode": None,
+                          "sources": [], "signals_created": 0, "errors": 0, "agents": [], "run_id": None}
 
 
 def _now() -> datetime:
@@ -64,17 +65,40 @@ def run_source(db, comp: Competitor, src: Source) -> dict:
             "changed": bool(observations) and (prev is None or prev.content_hash != observations[-1].content_hash)}
 
 
-def run_cycle(competitor_ids: list[int] | None = None) -> dict:
+def _agents(db, comps: list[Competitor], new_ids: dict[int, list[int]]) -> None:
+    """Agent graph per competitor (skipped without an LLM). Each competitor commits separately."""
+    from app.agents.graph import run_agents_for
+    from app.agents.tools import CycleBudget
+
+    if not get_settings().llm_configured:
+        STATUS["agents"].append({"skipped": "no LLM configured (set LLM_API_KEY)"})
+        return
+    budget = CycleBudget(get_settings().cycle_max_fetches)
+    for comp in comps:
+        STATUS["current"] = f"{comp.name}: agents (strategist -> investigator -> skeptic -> judge)"
+        try:
+            r = run_agents_for(db, comp, new_signal_ids=new_ids.get(comp.id, []), cycle_budget=budget)
+            db.commit()
+        except Exception as e:  # noqa: BLE001
+            db.rollback()
+            log.exception("agents failed for %s", comp.name)
+            r = {"error": f"{type(e).__name__}: {e}"[:300]}
+        STATUS["agents"].append({"competitor": comp.name, **r})
+
+
+def run_cycle(competitor_ids: list[int] | None = None, *, collect: bool = True, agents: bool = True) -> dict:
     started = _now()
-    STATUS.update(running=True, started_at=started.isoformat(), finished_at=None, sources=[], signals_created=0, errors=0)
+    STATUS.update(running=True, started_at=started.isoformat(), finished_at=None, sources=[], signals_created=0,
+                  errors=0, agents=[], mode="collect+agents" if collect and agents else "collect" if collect else "agents")
     calls_before = fetcher().network_calls
     try:
-        with session_scope() as db:
+        with session_scope() as db, audit_into(db):
             q = select(Competitor)
             if competitor_ids:
                 q = q.where(Competitor.id.in_(competitor_ids))
             comps = db.scalars(q).all()
-            for comp in comps:
+            max_before = db.scalar(select(func.max(Signal.id))) or 0
+            for comp in comps if collect else []:
                 for src in [s for s in comp.sources if s.active]:
                     STATUS["current"] = f"{comp.name}: {src.source_type} {src.url}"
                     try:
@@ -92,8 +116,14 @@ def run_cycle(competitor_ids: list[int] | None = None) -> dict:
                     STATUS["signals_created"] += res["signals"]
                     STATUS["errors"] += res["status"] not in ("ok",)
                     db.commit()
+            new_ids: dict[int, list[int]] = {}
+            for sid, cid in db.execute(select(Signal.id, Signal.competitor_id).where(Signal.id > max_before)).all():
+                new_ids.setdefault(cid, []).append(sid)
+            if agents:
+                _agents(db, comps, new_ids)
     finally:
         summary = {k: STATUS[k] for k in ("signals_created", "errors")}
+        summary["agents"] = STATUS["agents"]
         summary["network_calls"] = fetcher().network_calls - calls_before
         STATUS["run_id"] = log_agent_run("cycle", started, {"competitor_ids": competitor_ids},
                                          {**summary, "sources": STATUS["sources"]})
@@ -101,14 +131,14 @@ def run_cycle(competitor_ids: list[int] | None = None) -> dict:
     return dict(STATUS)
 
 
-def start_cycle_async(competitor_ids: list[int] | None = None) -> bool:
+def start_cycle_async(competitor_ids: list[int] | None = None, *, collect: bool = True, agents: bool = True) -> bool:
     """Start a cycle in a background thread. False if one is already running."""
     if not _lock.acquire(blocking=False):
         return False
 
     def _run():
         try:
-            run_cycle(competitor_ids)
+            run_cycle(competitor_ids, collect=collect, agents=agents)
         finally:
             _lock.release()
 
