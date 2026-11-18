@@ -7,3 +7,4 @@ data/argus.db*
 data/cache/
 node_modules/
 frontend/dist/
+frontend/*.tsbuildinfo

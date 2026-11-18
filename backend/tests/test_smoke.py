@@ -1,8 +1,6 @@
-import os
 
 import pytest
 
-os.environ["DB_URL"] = "sqlite:///:memory:"  # isolate tests from data/argus.db
 
 
 @pytest.fixture()
