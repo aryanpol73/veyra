@@ -20,8 +20,8 @@ DATA_DIR = REPO_DIR / "data"
 PROVIDER_PRESETS: dict[str, dict[str, str]] = {
     "groq": {
         "base_url": "https://api.groq.com/openai/v1",
-        "strong": "llama-3.3-70b-versatile",
-        "fast": "llama-3.1-8b-instant",
+        "strong": "openai/gpt-oss-120b",
+        "fast": "openai/gpt-oss-20b",
     },
     "ollama_cloud": {
         "base_url": "https://ollama.com/v1",

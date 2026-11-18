@@ -115,7 +115,7 @@ def ping() -> dict:
         return {"ok": False, "error": "LLM not configured (set LLM_PROVIDER / LLM_API_KEY in .env)"}
     try:
         r = client().chat.completions.create(
-            model=s.model_fast, messages=[{"role": "user", "content": "Reply with: ok"}], max_tokens=5
+            model=s.model_fast, messages=[{"role": "user", "content": "Reply with: ok"}], max_tokens=200
         )
         return {"ok": True, "reply": (r.choices[0].message.content or "").strip()[:20]}
     except Exception as e:

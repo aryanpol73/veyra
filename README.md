@@ -15,7 +15,7 @@ Then set your LLM in `.env` (copied from `.env.example`):
 
 | Provider | `LLM_PROVIDER` | Key | Default strong / fast models |
 |---|---|---|---|
-| Groq (free tier) | `groq` | console.groq.com/keys | `llama-3.3-70b-versatile` / `llama-3.1-8b-instant` |
+| Groq (free tier) | `groq` | console.groq.com/keys | `openai/gpt-oss-120b` / `openai/gpt-oss-20b` |
 | Ollama Cloud | `ollama_cloud` | ollama.com/settings/keys | `gpt-oss:120b` / `gpt-oss:20b` |
 | Local Ollama | `ollama_local` | none | `llama3.1:8b` |
 
