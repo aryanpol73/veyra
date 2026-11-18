@@ -108,7 +108,8 @@ def complete_json(
     tokens_in = tokens_out = 0
     last_err = ""
     raw = ""
-    for attempt in range(2):
+    attempt = waits = 0  # rate-limit waits do NOT use up the one validation retry
+    while attempt < 2:
         try:
             prompt_est = sum(len(m["content"]) for m in messages) // 3  # conservative chars->tokens
             max_out = get_settings().llm_max_tokens
@@ -143,12 +144,14 @@ def complete_json(
         except RateLimitError as e:
             # Daily (TPD) limits come back as 429 with "try again in 9m58s": wait it out instead of degrading results.
             wait = _retry_after_s(str(e))
-            if wait is None or wait > get_settings().llm_max_wait_s or attempt == 1:
+            waits += 1
+            if wait is None or wait > get_settings().llm_max_wait_s or waits > 8:
                 last_err = f"RateLimitError: {str(e)[:300]}"
                 break
             log.warning("llm %s rate-limited (%s); waiting %.0fs", kind, "daily" if "per day" in str(e) else "minute", wait)
             time.sleep(wait + 2)
             last_err = "rate limited; retried after wait"
+            continue
         except BadRequestError as e:
             # Tool-trained models (gpt-oss) sometimes emit a native function call instead of JSON; Groq rejects it.
             if "tool_use_failed" not in str(e) or attempt == 1:
@@ -157,12 +160,14 @@ def complete_json(
             last_err = "model attempted a native tool call"
             messages += [{"role": "user", "content": "You cannot call functions. Reply with the JSON object only; "
                           "put a tool name in the `action` field and its arguments in `args`."}]
+            attempt += 1
         except ValidationError as e:
             last_err = f"validation: {e}"
             messages += [
                 {"role": "assistant", "content": raw},
                 {"role": "user", "content": f"Your JSON failed validation:\n{e}\nReturn corrected JSON only."},
             ]
+            attempt += 1
         except Exception as e:  # network / provider errors: no point retrying the same prompt twice
             last_err = f"{type(e).__name__}: {e}"
             break
