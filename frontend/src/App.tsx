@@ -10,7 +10,7 @@ const NAV = [
   { to: "/hypotheses", label: "Hypotheses" },
   { to: "/feed", label: "Intelligence Feed" },
   { to: "/competitors", label: "Competitors" },
-  { to: "/ask", label: "Ask Argus" },
+  { to: "/ask", label: "Ask Veyra" },
   { to: "/evaluation", label: "Evaluation" },
   { to: "/reports", label: "Reports" },
 ];
@@ -18,7 +18,7 @@ const NAV = [
 function useTheme(): [boolean, () => void] {
   const [dark, setDark] = useState(() => {
     try {
-      const saved = localStorage.getItem("argus-theme");
+      const saved = localStorage.getItem("veyra-theme");
       if (saved) return saved === "dark";
     } catch {}
     return window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -26,7 +26,7 @@ function useTheme(): [boolean, () => void] {
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
     try {
-      localStorage.setItem("argus-theme", dark ? "dark" : "light");
+      localStorage.setItem("veyra-theme", dark ? "dark" : "light");
     } catch {}
   }, [dark]);
   return [dark, () => setDark((d) => !d)];
@@ -39,7 +39,7 @@ export default function App() {
       <aside className="border-b border-zinc-200 bg-white md:w-56 md:border-b-0 md:border-r dark:border-zinc-800 dark:bg-zinc-900">
         <div className="flex items-center justify-between p-4">
           <div>
-            <div className="text-lg font-bold tracking-tight">ARGUS</div>
+            <div className="text-lg font-bold tracking-tight">VEYRA</div>
             <div className="text-xs text-zinc-500">hypothesis-driven CI</div>
           </div>
           <button onClick={toggle} className="rounded border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700" aria-label="Toggle theme">
@@ -69,7 +69,7 @@ export default function App() {
           <Route path="/competitors" element={<Competitors />} />
           <Route path="/hypotheses" element={<Placeholder title="Hypotheses" phase={2} what="Persistent hypotheses with evidence for/against, belief timeline, skeptic challenges and investigation logs." />} />
           <Route path="/feed" element={<Feed />} />
-          <Route path="/ask" element={<Placeholder title="Ask Argus" phase={4} what="Chat grounded in the database via tool calls, with cited sources." />} />
+          <Route path="/ask" element={<Placeholder title="Ask Veyra" phase={4} what="Chat grounded in the database via tool calls, with cited sources." />} />
           <Route path="/evaluation" element={<Placeholder title="Evaluation" phase={3} what="Leakage-safe replay backtest: precision, recall, lead time, Brier score, calibration with Wilson intervals." />} />
           <Route path="/reports" element={<Placeholder title="Reports" phase={4} what="Daily brief archive: what happened, why it matters, what to do." />} />
         </Routes>

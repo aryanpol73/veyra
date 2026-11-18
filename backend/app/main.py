@@ -1,4 +1,4 @@
-"""ARGUS API. Phase 0: health + competitor CRUD. Later phases add cycle/signals/hypotheses/eval/chat."""
+"""Veyra API. Phase 0: health + competitor CRUD. Later phases add cycle/signals/hypotheses/eval/chat."""
 from __future__ import annotations
 
 import logging
@@ -36,7 +36,7 @@ async def lifespan(_: FastAPI):
         sched.shutdown(wait=False)
 
 
-app = FastAPI(title="ARGUS", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Veyra", version="0.1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],

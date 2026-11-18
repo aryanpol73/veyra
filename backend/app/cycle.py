@@ -21,7 +21,7 @@ from app.detect import detectors as det
 from app.detect.normalize import persist
 from app.detect.snapshot import last_snapshot, store
 
-log = logging.getLogger("argus.cycle")
+log = logging.getLogger("veyra.cycle")
 
 _lock = threading.Lock()
 STATUS: dict[str, Any] = {"running": False, "started_at": None, "finished_at": None, "current": None,
@@ -113,5 +113,5 @@ def start_cycle_async(competitor_ids: list[int] | None = None) -> bool:
             _lock.release()
 
     STATUS["running"] = True
-    threading.Thread(target=_run, name="argus-cycle", daemon=True).start()
+    threading.Thread(target=_run, name="veyra-cycle", daemon=True).start()
     return True

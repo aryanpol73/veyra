@@ -52,10 +52,10 @@ class Settings(BaseSettings):
     llm_max_tokens: int = 2048
 
     # --- storage ---
-    db_url: str = f"sqlite:///{(DATA_DIR / 'argus.db').as_posix()}"
+    db_url: str = f"sqlite:///{(DATA_DIR / 'veyra.db').as_posix()}"
 
     # --- crawling etiquette ---
-    user_agent_email: str = "argus-bot@example.com"
+    user_agent_email: str = "veyra-bot@example.com"
     per_domain_delay_s: float = 2.0
     fetch_timeout_s: float = 20.0
 
@@ -97,7 +97,7 @@ class Settings(BaseSettings):
 
     @property
     def user_agent(self) -> str:
-        return f"ArgusCIBot/0.1 (college research project; contact: {self.user_agent_email})"
+        return f"VeyraCIBot/0.1 (college research project; contact: {self.user_agent_email})"
 
 
 @lru_cache

@@ -3,7 +3,7 @@
 __pycache__/
 *.pyc
 .pytest_cache/
-data/argus.db*
+data/veyra.db*
 data/cache/
 node_modules/
 frontend/dist/

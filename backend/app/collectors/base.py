@@ -24,9 +24,9 @@ import httpx
 
 from app.config import DATA_DIR, get_settings
 
-log = logging.getLogger("argus.fetch")
+log = logging.getLogger("veyra.fetch")
 CACHE_DIR = DATA_DIR / "cache"
-ROBOTS_AGENT = "ArgusCIBot"
+ROBOTS_AGENT = "VeyraCIBot"
 
 
 @dataclass

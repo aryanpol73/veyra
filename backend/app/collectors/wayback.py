@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 
 from app.collectors.base import FetchError, fetcher
 
-log = logging.getLogger("argus.wayback")
+log = logging.getLogger("veyra.wayback")
 CDX = "http://web.archive.org/cdx/search/cdx"
 
 

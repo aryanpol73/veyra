@@ -18,7 +18,7 @@ from pydantic import BaseModel, ValidationError
 
 from app.config import get_settings
 
-log = logging.getLogger("argus.llm")
+log = logging.getLogger("veyra.llm")
 T = TypeVar("T", bound=BaseModel)
 Role = Literal["strong", "fast"]
 

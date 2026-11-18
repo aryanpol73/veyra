@@ -27,7 +27,7 @@ from app.db.models import Competitor, Snapshot, Source
 from app.detect import semantic_diff as sd
 from app.detect.normalize import PRIORITY_RULES, SignalDraft, assign_news_group, persist
 
-log = logging.getLogger("argus.detect")
+log = logging.getLogger("veyra.detect")
 
 JOBS_LOOKBACK_DAYS = 14
 NEWS_LOOKBACK_DAYS = 30

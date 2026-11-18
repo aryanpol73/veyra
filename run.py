@@ -1,4 +1,4 @@
-"""One command to start ARGUS:  python run.py
+"""One command to start Veyra:  python run.py
 Starts FastAPI on :8000 and the Vite dashboard on :5173. Ctrl+C stops both.
 First run: creates backend/.venv, installs deps, seeds the DB, runs npm install.
 """
@@ -40,7 +40,7 @@ def main() -> None:
         subprocess.Popen([str(VENV_PY), "-m", "uvicorn", "app.main:app", "--reload", "--port", "8000"], cwd=BACKEND),
         subprocess.Popen([NPM, "run", "dev"], cwd=FRONTEND, shell=os.name == "nt"),
     ]
-    print("\nARGUS  API http://127.0.0.1:8000/docs   Dashboard http://localhost:5173\n")
+    print("\nVeyra  API http://127.0.0.1:8000/docs   Dashboard http://localhost:5173\n")
     try:
         for p in procs:
             p.wait()

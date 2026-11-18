@@ -1,8 +1,8 @@
-# ARGUS — Hypothesis-Driven Competitive Intelligence Agent
+# Veyra — Hypothesis-Driven Competitive Intelligence Agent
 
 An autonomous, hypothesis-driven competitive intelligence system that investigates competing
 explanations and measures its own prediction accuracy. (Not the first CI agent: Klue and Crayon
-exist. ARGUS differs in persistent hypotheses, adversarial validation, independence-aware
+exist. Veyra differs in persistent hypotheses, adversarial validation, independence-aware
 confidence, early-signal sources, and measurable backtesting.)
 
 ## Quick start
@@ -22,7 +22,7 @@ Then set your LLM in `.env` (copied from `.env.example`):
 Any OpenAI-compatible endpoint works through `LLM_BASE_URL`, `LLM_STRONG` and `LLM_FAST`.
 Use "Test LLM" on the Overview page to check the connection.
 
-> **Windows:** keep the repo at a short path (e.g. `C:\Users\you\argus`). LangGraph's
+> **Windows:** keep the repo at a short path (e.g. `C:\Users\you\veyra`). LangGraph's
 > dependency `xxhash` ships a DLL that fails to load past the 260-char MAX_PATH limit.
 
 ## Tests
