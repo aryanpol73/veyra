@@ -10,7 +10,9 @@ import contextvars
 import json
 import logging
 import re
+import threading
 import time
+from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Literal, TypeVar
@@ -100,6 +102,7 @@ def complete_json(
         f"{system}\n\nRespond with ONLY a JSON object matching this JSON Schema. "
         f"No prose, no markdown.\n{json.dumps(schema.model_json_schema())}"
     )
+    sys_prompt, user = mask(sys_prompt), mask(user)  # contamination control (no-op unless masking is active)
     messages = [{"role": "system", "content": sys_prompt}, {"role": "user", "content": user}]
     started = datetime.now(timezone.utc)
     tokens_in = tokens_out = 0
@@ -107,6 +110,7 @@ def complete_json(
     raw = ""
     for attempt in range(2):
         try:
+            throttle(sum(len(m["content"]) for m in messages) // 4 + 1500)
             t0 = time.perf_counter()
             extra = {}
             if "gpt-oss" in model_for(role) and get_settings().llm_provider == "groq":
@@ -121,12 +125,13 @@ def complete_json(
             )
             log.debug("llm %s %.1fs", kind, time.perf_counter() - t0)
             if resp.usage:
+                record_usage((resp.usage.prompt_tokens or 0) + (resp.usage.completion_tokens or 0))
                 tokens_in += resp.usage.prompt_tokens or 0
                 tokens_out += resp.usage.completion_tokens or 0
                 if budget is not None:
                     budget.used += (resp.usage.prompt_tokens or 0) + (resp.usage.completion_tokens or 0)
                     budget.calls += 1
-            raw = resp.choices[0].message.content or ""
+            raw = unmask(resp.choices[0].message.content or "")
             parsed = schema.model_validate_json(_extract_json(raw))
             log_agent_run(kind, started, {"user": user[:4000]}, parsed.model_dump(mode="json"),
                           tokens_in=tokens_in, tokens_out=tokens_out, model=model_for(role))
@@ -152,6 +157,66 @@ def complete_json(
     log_agent_run(kind, started, {"user": user[:4000]}, {"raw": raw[:4000]},
                   tokens_in=tokens_in, tokens_out=tokens_out, error=last_err, model=model_for(role))
     return None
+
+
+# ---------------- rate limiting (client-side; Groq free tier = 8k tokens/min/model) ----------------
+_usage: deque[tuple[float, int]] = deque()
+_usage_lock = threading.Lock()
+
+
+def _tpm_limit() -> int:
+    s = get_settings()
+    return s.llm_tpm_limit or (8000 if s.llm_provider == "groq" else 0)
+
+
+def record_usage(tokens: int) -> None:
+    with _usage_lock:
+        _usage.append((time.monotonic(), tokens))
+
+
+def throttle(estimate: int) -> None:
+    """Block until the last 60 s of usage + this call's estimate fits under the TPM limit."""
+    limit = _tpm_limit()
+    if not limit:
+        return
+    estimate = min(estimate, int(limit * 0.9))
+    while True:
+        with _usage_lock:
+            cutoff = time.monotonic() - 60
+            while _usage and _usage[0][0] < cutoff:
+                _usage.popleft()
+            used = sum(t for _, t in _usage)
+            wait = 0.0 if used + estimate <= limit * 0.95 or not _usage else _usage[0][0] - cutoff + 0.5
+        if wait <= 0:
+            return
+        log.info("throttling %.1fs to stay under %d tokens/min", wait, limit)
+        time.sleep(wait)
+
+
+# ---------------- contamination control: name masking ----------------
+_mask: contextvars.ContextVar[list[tuple[re.Pattern, str, str]] | None] = contextvars.ContextVar("llm_mask", default=None)
+
+
+def set_mask(aliases: dict[str, str] | None) -> None:
+    """aliases: real term -> neutral token (e.g. {"Vercel": "CompanyA", "vercel.com": "companya.example"}).
+    Prompts are masked before sending; replies are unmasked before validation, so the model never sees the names."""
+    if not aliases:
+        _mask.set(None)
+        return
+    items = sorted(aliases.items(), key=lambda kv: -len(kv[0]))  # longest first: "vercel.com" before "Vercel"
+    _mask.set([(re.compile(rf"(?<![\w.]){re.escape(real)}(?![\w])", re.I), real, tok) for real, tok in items])
+
+
+def mask(text: str) -> str:
+    for rx, _, tok in _mask.get() or []:
+        text = rx.sub(tok, text)
+    return text
+
+
+def unmask(text: str) -> str:
+    for _, real, tok in _mask.get() or []:
+        text = re.sub(rf"(?<![\w]){re.escape(tok)}(?![\w])", real, text)
+    return text
 
 
 def ping() -> dict:

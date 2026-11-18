@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     llm_strong: str = ""  # strategist / skeptic / chat / reporter
     llm_fast: str = ""  # classification / stance labeling
     llm_timeout_s: float = 60.0
+    llm_tpm_limit: int = 0  # client-side tokens/minute throttle; 0 = auto (8000 for groq free tier)
     llm_max_tokens: int = 4096  # reasoning models (gpt-oss) spend part of this on hidden reasoning
 
     # --- storage ---

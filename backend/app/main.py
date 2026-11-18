@@ -338,3 +338,76 @@ def agent_runs(kind: str | None = None, limit: int = 50, db: Session = Depends(g
     rows = db.scalars(q.order_by(AgentRun.id.desc()).limit(min(limit, 500))).all()
     return [{"id": r.id, "kind": r.kind, "started_at": r.started_at, "ended_at": r.ended_at, "model": r.model,
              "tokens_in": r.tokens_in, "tokens_out": r.tokens_out, "error": r.error, "output": r.output} for r in rows]
+
+
+# ---------- evaluation ----------
+import subprocess  # noqa: E402
+import sys  # noqa: E402
+
+from app.config import BACKEND_DIR, DATA_DIR  # noqa: E402
+from app.db.models import EvalRun  # noqa: E402
+
+_EVAL: dict = {"proc": None, "mode": None, "log": None, "started_at": None}
+
+
+class EvalIn(BaseModel):
+    mode: str = Field(default="masked", pattern="^(masked|none|post_cutoff)$")
+    synthetic: bool = False
+
+
+@app.post("/eval/run", status_code=202)
+def eval_run(body: EvalIn | None = None):
+    """Runs `python -m app.eval.run_eval` in a separate process (own replay DB; slow on free LLM tiers)."""
+    body = body or EvalIn()
+    p = _EVAL["proc"]
+    if p is not None and p.poll() is None:
+        raise HTTPException(409, f"an evaluation ({_EVAL['mode']}) is already running")
+    (DATA_DIR / "eval").mkdir(parents=True, exist_ok=True)
+    log_path = DATA_DIR / "eval" / f"last_{body.mode}.log"
+    args = [sys.executable, "-m", "app.eval.run_eval", "--mode", body.mode] + (["--synthetic"] if body.synthetic else [])
+    fh = open(log_path, "w", encoding="utf-8")  # noqa: SIM115 - closed when the process exits
+    _EVAL.update(proc=subprocess.Popen(args, cwd=BACKEND_DIR, stdout=fh, stderr=subprocess.STDOUT,
+                                       env={**__import__("os").environ, "PYTHONIOENCODING": "utf-8"}),
+                 mode=body.mode, log=log_path, started_at=datetime.now().isoformat())
+    return {"started": True, "mode": body.mode}
+
+
+@app.get("/eval/status")
+def eval_status():
+    p = _EVAL["proc"]
+    tail = ""
+    if _EVAL["log"] and _EVAL["log"].exists():
+        tail = "\n".join(_EVAL["log"].read_text("utf-8", errors="replace").splitlines()[-15:])
+    return {"running": p is not None and p.poll() is None, "mode": _EVAL["mode"], "started_at": _EVAL["started_at"],
+            "exit_code": None if p is None else p.poll(), "log_tail": tail}
+
+
+def _eval_out(r: EvalRun) -> dict:
+    return {"id": r.id, "created_at": r.created_at, "mode": r.contamination_mode, "config": r.config, "metrics": r.metrics}
+
+
+@app.get("/eval/runs")
+def eval_runs(db: Session = Depends(get_db)):
+    return [{"id": r.id, "created_at": r.created_at, "mode": r.contamination_mode,
+             "precision": r.metrics.get("precision"), "recall": r.metrics.get("recall"), "n_events": r.metrics.get("n_events"),
+             "agents": r.config.get("agents")}
+            for r in db.scalars(select(EvalRun).order_by(EvalRun.id.desc()))]
+
+
+@app.get("/eval/runs/latest")
+def eval_latest(mode: str | None = None, db: Session = Depends(get_db)):
+    q = select(EvalRun).order_by(EvalRun.id.desc())
+    if mode:
+        q = q.where(EvalRun.contamination_mode == mode)
+    r = db.scalars(q.limit(1)).first()
+    if not r:
+        raise HTTPException(404, "no evaluation run yet: POST /eval/run or `python -m app.eval.run_eval`")
+    return _eval_out(r)
+
+
+@app.get("/eval/runs/{rid}")
+def eval_get(rid: int, db: Session = Depends(get_db)):
+    r = db.get(EvalRun, rid)
+    if not r:
+        raise HTTPException(404, "eval run not found")
+    return _eval_out(r)

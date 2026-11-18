@@ -47,8 +47,10 @@ def _now(obs: RawObservation) -> datetime:
 
 # ======================= pages =======================
 def detect_page(db: Session, comp: Competitor, src: Source, obs: RawObservation,
-                prev: Snapshot | None, cur: Snapshot) -> list[SignalDraft]:
+                prev: Snapshot | None, cur: Snapshot, *, allow_wayback: bool = True) -> list[SignalDraft]:
     baseline_note = None
+    if prev is None and not allow_wayback:
+        return []  # replay: the first frozen capture is the baseline (no network)
     if prev is None:
         wb = wayback.baseline_before(src.url, days_ago=30)
         if not wb:
@@ -250,7 +252,7 @@ def classify_news(comp: Competitor, items: list[dict]) -> tuple[dict[int, NewsLa
 
 
 def detect_news(db: Session, comp: Competitor, src: Source, obs: RawObservation,
-                prev: Snapshot | None, cur: Snapshot) -> int:
+                prev: Snapshot | None, cur: Snapshot, *, replay: bool = False, detected_at: datetime | None = None) -> int:
     """News is persisted item by item so later items can join earlier ones' origin_group. Returns count."""
     now = _now(obs)
     seen = set(prev.content_text.splitlines()) if prev else set()
@@ -270,7 +272,7 @@ def detect_news(db: Session, comp: Competitor, src: Source, obs: RawObservation,
             origin_group=group, dedup_basis=f"url|{it['url']}",
             raw={"title": it["title"], "publisher": it.get("publisher"), "kind": it["kind"], "classified_by": by,
                  "source_reliability_hint": "official" if official else "news"})
-        n += len(persist(db, comp.id, src.id, [d]))
+        n += len(persist(db, comp.id, src.id, [d], replay=replay, detected_at=detected_at))
     return n
 
 

@@ -1,0 +1,117 @@
+# Veyra pilot ground truth: strategic moves by the 3 seeded competitors, 2026-05-01 .. 2026-11-18.
+#
+# Labelling protocol (written down and frozen BEFORE the first replay was run):
+#   * one event = one strategic move, dated by its decisive OFFICIAL announcement (company blog/changelog);
+#     Airtable has no feed, so its event is dated by the first Wayback capture showing the change (+/- 1 month).
+#   * every source_url was present in the frozen dataset (data/replay) when labelled.
+#   * keywords name the strategic THEME a hypothesis must mention to count as a match; an entry "a+b"
+#     requires both terms. Matching is case-insensitive substring on the hypothesis statement.
+#   * labelled by one person (the project team, with an AI assistant drafting); a second reviewer should
+#     check these before the numbers are quoted anywhere. Treat this as a pilot, not a benchmark.
+events:
+  - id: vercel-eve
+    competitor: Vercel
+    label: Launches eve, an open-source agent framework
+    category: product
+    public_date: 2026-06-17
+    source_url: https://vercel.com/changelog/introducing-eve-an-open-source-agent-framework
+    keywords: ["agent framework", "agent platform", "agents+platform", "ai agents"]
+  - id: vercel-agent-pricing
+    competitor: Vercel
+    label: Reprices the Vercel Agent product
+    category: pricing
+    public_date: 2026-06-30
+    source_url: https://vercel.com/changelog/vercel-agent-has-updated-pricing
+    keywords: ["agent+pric", "agent+billing", "agent+monetiz"]
+  - id: vercel-better-auth
+    competitor: Vercel
+    label: Acquires Better Auth (open-source authentication)
+    category: market
+    public_date: 2026-07-07
+    source_url: https://vercel.com/blog/vercel-acquires-better-auth
+    keywords: ["acqui", "authentication", "better auth"]
+  - id: vercel-enterprise-flex
+    competitor: Vercel
+    label: Introduces Enterprise Flexible Commitment contracts
+    category: pricing
+    public_date: 2026-07-30
+    source_url: https://vercel.com/changelog/introducing-enterprise-flexible-commitment-for-vercel-marketplace
+    keywords: ["enterprise+commit", "enterprise+contract", "upmarket", "enterprise+pric"]
+  - id: vercel-ai-gateway
+    competitor: Vercel
+    label: Builds out AI Gateway (spend budgets, routing, many models)
+    category: product
+    public_date: 2026-07-31
+    source_url: https://vercel.com/changelog/ai-gateway-spend-budgets-and-alerts
+    keywords: ["ai gateway", "model gateway", "llm gateway"]
+  - id: vercel-free-domain-pro
+    competitor: Vercel
+    label: Bundles a free domain with Pro subscriptions
+    category: pricing
+    public_date: 2026-08-07
+    source_url: https://vercel.com/changelog/free-domain-now-included-with-new-pro-subscriptions
+    keywords: ["free domain", "pro+domain", "pro+bundl", "pro+incentiv"]
+  - id: vercel-flat-rate-cdn
+    competitor: Vercel
+    label: Introduces Flat Rate CDN pricing
+    category: pricing
+    public_date: 2026-09-08
+    source_url: https://vercel.com/blog/introducing-flat-rate-cdn
+    keywords: ["flat rate", "flat-rate", "cdn+pric", "predictable pricing"]
+  - id: vercel-hobby-limits
+    competitor: Vercel
+    label: Tightens Hobby (free) plan limits
+    category: pricing
+    public_date: 2026-09-16
+    source_url: https://vercel.com/changelog/hobby-projects-now-retain-fewer-deployments-to-free-up-storage
+    keywords: ["hobby", "free tier+limit", "free plan+limit", "free tier+restrict"]
+  - id: vercel-ci
+    competitor: Vercel
+    label: Launches Vercel CI
+    category: product
+    public_date: 2026-10-28
+    source_url: https://vercel.com/blog/introducing-vercel-ci
+    keywords: ["continuous integration", "vercel ci", "ci/cd", "ci service"]
+  - id: vercel-security-review
+    competitor: Vercel
+    label: Launches Vercel Security Review (security product line)
+    category: product
+    public_date: 2026-11-02
+    source_url: https://vercel.com/blog/vercel-security-review
+    keywords: ["security product", "security+offering", "security review", "application security"]
+  - id: figma-design-agent
+    competitor: Figma
+    label: Launches the Figma design agent
+    category: product
+    public_date: 2026-05-20
+    source_url: https://figma.com/blog/the-figma-agent-is-here
+    keywords: ["agent"]
+  - id: figma-motion
+    competitor: Figma
+    label: Introduces Figma Motion (timeline animation)
+    category: product
+    public_date: 2026-06-24
+    source_url: https://figma.com/blog/introducing-figma-motion
+    keywords: ["motion", "animation", "timeline"]
+  - id: figma-japan-residency
+    competitor: Figma
+    label: Launches data residency in Japan
+    category: market
+    public_date: 2026-09-11
+    source_url: https://figma.com/blog/japan-local-data-hosting
+    keywords: ["data residency", "japan", "local data hosting", "data sovereignty"]
+  - id: figma-specs
+    competitor: Figma
+    label: Introduces Specs (Markdown specs for design-to-code)
+    category: product
+    public_date: 2026-10-15
+    source_url: https://figma.com/blog/introducing-figma-specs
+    keywords: ["specs", "markdown", "design-to-code", "design to code"]
+  - id: airtable-agents-positioning
+    competitor: Airtable
+    label: Repositions homepage around agents ("Teams, workflows, and agents")
+    category: market
+    public_date: 2026-10-01
+    source_url: https://web.archive.org/web/20261001143213/https://www.airtable.com/
+    keywords: ["agent"]
+    notes: Reverted in the 2026-11-01 capture; may be an A/B test or campaign rather than a lasting strategy.

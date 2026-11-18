@@ -92,7 +92,7 @@ def assign_news_group(db: Session, competitor_id: int, title: str, observed_at: 
 
 
 def persist(db: Session, competitor_id: int, source_id: int | None, drafts: list[SignalDraft],
-            *, synthetic: bool = False, replay: bool = False) -> list[Signal]:
+            *, synthetic: bool = False, replay: bool = False, detected_at: datetime | None = None) -> list[Signal]:
     """Insert new signals; skip duplicates by dedup_key. Returns the inserted rows."""
     out: list[Signal] = []
     for d in drafts:
@@ -106,6 +106,7 @@ def persist(db: Session, competitor_id: int, source_id: int | None, drafts: list
             old_value=d.old_value, new_value=d.new_value, evidence_url=d.evidence_url,
             observed_at=d.observed_at, origin_group=group, event_confidence=d.event_confidence,
             priority=priority_for(d), dedup_key=key, raw=d.raw, synthetic=synthetic, replay=replay,
+            **({"detected_at": detected_at} if detected_at else {}),
         )
         db.add(s)
         db.flush()

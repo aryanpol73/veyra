@@ -1,0 +1,79 @@
+{
+  "built_at": "2026-11-18T08:19:41.407651+00:00",
+  "start": "2026-01-01T00:00:00+00:00",
+  "end": "2026-11-18T00:00:00+00:00",
+  "competitors": {
+    "Vercel": {
+      "sources": [
+        {
+          "url": "https://vercel.com/pricing",
+          "source_type": "page",
+          "key": "ffdc467f08",
+          "captures": 11
+        },
+        {
+          "url": "https://vercel.com/",
+          "source_type": "page",
+          "key": "843a793e92",
+          "captures": 11
+        },
+        {
+          "url": "https://vercel.com/changelog",
+          "source_type": "page",
+          "key": "beb7a06778",
+          "captures": 11
+        },
+        {
+          "url": "https://vercel.com/atom",
+          "source_type": "news",
+          "key": "fc6274f583",
+          "captures": 10
+        }
+      ]
+    },
+    "Figma": {
+      "sources": [
+        {
+          "url": "https://www.figma.com/pricing/",
+          "source_type": "page",
+          "key": "57120e50bd",
+          "captures": 11
+        },
+        {
+          "url": "https://www.figma.com/",
+          "source_type": "page",
+          "key": "68fedf6492",
+          "captures": 11
+        },
+        {
+          "url": "https://www.figma.com/release-notes/",
+          "source_type": "page",
+          "key": "85f41a3c70",
+          "captures": 11
+        },
+        {
+          "url": "https://www.figma.com/blog/feed/atom.xml",
+          "source_type": "news",
+          "key": "2b15e5eac2",
+          "captures": 8
+        }
+      ]
+    },
+    "Airtable": {
+      "sources": [
+        {
+          "url": "https://www.airtable.com/pricing",
+          "source_type": "page",
+          "key": "7d2a477a13",
+          "captures": 11
+        },
+        {
+          "url": "https://www.airtable.com/",
+          "source_type": "page",
+          "key": "78242d8f3e",
+          "captures": 11
+        }
+      ]
+    }
+  }
+}

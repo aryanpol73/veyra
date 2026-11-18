@@ -145,3 +145,22 @@ export interface AlertItem {
   created_at: string;
   feedback: string | null;
 }
+
+export interface CalibrationBin { bin: string; range: [number, number]; n: number; hits: number; mean_confidence: number | null; observed_rate: number | null; wilson_95: [number, number] | null }
+export interface EvalEventRow { id: string; competitor: string; label: string; category: string; public_date: string; source_url: string; detected_at: string | null; lead_days: number | null; matched_hypothesis_id: number | null; matched_statement: string | null; is_true_positive: boolean }
+export interface EvalRun {
+  id: number;
+  created_at: string;
+  mode: "masked" | "none" | "post_cutoff";
+  config: Record<string, any>;
+  metrics: {
+    n_events: number; n_hypotheses: number; n_detected: number; true_positives: number;
+    precision: number | null; recall: number | null; fp_rate: number | null; false_alarms_per_competitor_month: number | null;
+    lead_days: number[]; lead_median: number | null; early_detections: number;
+    brier_hypotheses: number | null; brier_predictions: number | null; n_predictions_resolved: number;
+    calibration: CalibrationBin[]; events: EvalEventRow[]; config: Record<string, any>;
+    hypotheses: { id: number; competitor: string; statement: string; final_confidence: number; detected_at: string | null; matched_event: string | null }[];
+    synthetic_test?: { passed: boolean; expectation: string; [k: string]: any };
+  };
+}
+export interface EvalStatus { running: boolean; mode: string | null; started_at: string | null; exit_code: number | null; log_tail: string }
