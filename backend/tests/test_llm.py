@@ -78,3 +78,12 @@ def test_masking_round_trip(fake):
     finally:
         llm.set_mask(None)
     assert llm.mask("Acme") == "Acme"
+
+
+def test_provider_json_rejection_is_retried(fake):
+    from openai import BadRequestError
+
+    req = httpx.Request("POST", "https://x")
+    err = BadRequestError("Failed to validate JSON. Please adjust your prompt.", response=httpx.Response(400, request=req), body=None)
+    c = fake([err, '{"ok": true}'])
+    assert _call() == Out(ok=True) and c.calls == 2

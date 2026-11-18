@@ -154,12 +154,20 @@ def complete_json(
             continue
         except BadRequestError as e:
             # Tool-trained models (gpt-oss) sometimes emit a native function call instead of JSON; Groq rejects it.
-            if "tool_use_failed" not in str(e) or attempt == 1:
+            # ...or produces malformed JSON, which Groq's JSON mode rejects server-side ("Failed to validate JSON").
+            msg = str(e)
+            retryable = "tool_use_failed" in msg or "Failed to validate JSON" in msg or "json_validate_failed" in msg
+            if not retryable or attempt == 1:
                 last_err = f"BadRequestError: {e}"
                 break
-            last_err = "model attempted a native tool call"
-            messages += [{"role": "user", "content": "You cannot call functions. Reply with the JSON object only; "
-                          "put a tool name in the `action` field and its arguments in `args`."}]
+            if "tool_use_failed" in msg:
+                last_err = "model attempted a native tool call"
+                messages += [{"role": "user", "content": "You cannot call functions. Reply with the JSON object only; "
+                              "put a tool name in the `action` field and its arguments in `args`."}]
+            else:
+                last_err = "provider rejected malformed JSON"
+                messages += [{"role": "user", "content": "Your previous reply was not valid JSON. Reply with one valid "
+                              "JSON object only: double-quoted keys and strings, no comments, no trailing commas."}]
             attempt += 1
         except ValidationError as e:
             last_err = f"validation: {e}"
