@@ -137,7 +137,7 @@ export function ConfidenceGauge({ value, size = "sm", label }: { value: number; 
   const lg = size === "lg";
   return (
     <div className="w-full" role="img" aria-label={label ?? `confidence ${v.toFixed(2)} on a 0 to 1 scale (uncalibrated heuristic)`}>
-      <div className={`relative ${lg ? "h-3" : "h-1.5"} w-full overflow-visible`}>
+      <div className={`relative ${lg ? "h-3" : "h-2"} w-full overflow-visible`}>
         <div className="absolute inset-0 overflow-hidden rounded-[1px] border border-line bg-sunken">
           <div className="anim-fill hatch absolute inset-y-0 left-0" style={{ width: `${v * 100}%` }} />
         </div>
