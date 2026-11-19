@@ -1,14 +1,40 @@
-// Thin typed API client. Vite proxies /api -> FastAPI on :8000.
+// Thin typed API client. Dev: Vite proxies /api -> FastAPI. Production: FastAPI serves the app and the API on one origin.
 const BASE = "/api";
 
+/** Fired on any 401 so the app can show the login screen (session expired, or never logged in). */
+export const UNAUTHORIZED = "veyra:unauthorized";
+
+export class ApiError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+  }
+}
+
+function detail(body: string): string {
+  try {
+    const d = JSON.parse(body).detail;
+    if (typeof d === "string") return d;
+    if (Array.isArray(d)) return d.map((x) => x.msg ?? JSON.stringify(x)).join("; ");
+  } catch {}
+  return body.slice(0, 300);
+}
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
-  const r = await fetch(BASE + path, {
-    headers: { "Content-Type": "application/json" },
-    ...init,
-  });
+  let r: Response;
+  try {
+    r = await fetch(BASE + path, {
+      credentials: "same-origin",
+      ...init,
+      // X-Veyra marks requests as coming from this app (the server's CSRF guard for writes).
+      headers: { "Content-Type": "application/json", "X-Veyra": "1", ...(init?.headers ?? {}) },
+    });
+  } catch {
+    throw new ApiError(0, navigator.onLine ? "Can't reach the Veyra server." : "You're offline.");
+  }
+  if (r.status === 401 && !path.startsWith("/auth/")) window.dispatchEvent(new Event(UNAUTHORIZED));
   if (!r.ok) {
     const body = await r.text();
-    throw new Error(`${r.status} ${r.statusText}: ${body.slice(0, 300)}`);
+    throw new ApiError(r.status, `${r.status === 0 ? "" : r.status + " "}${detail(body) || r.statusText}`);
   }
   return r.status === 204 ? (undefined as T) : r.json();
 }
@@ -174,3 +200,5 @@ export interface Citation { kind: "signal" | "hypothesis"; id: number; competito
 export interface Timeline { hypothesis_id: number; competitor: string; statement: string; status: string; confidence: number; band: string; points: { ts: string; confidence: number; delta: number; reason: string }[] }
 export interface ChatReply { answer: string; citations: Citation[]; timelines: Timeline[]; tool_calls: { tool: string; args: Record<string, unknown>; result: string }[]; dropped_citations?: number; error: boolean }
 export interface BriefMeta { date: string; bytes: number }
+
+export interface AuthStatus { enabled: boolean; authenticated: boolean }

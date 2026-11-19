@@ -22,7 +22,8 @@ from app.collectors import base as collectors_base
 from app.collectors.base import RawObservation
 from app.config import get_settings
 from app.db.models import Competitor, Signal, Source
-from app.db.seed import COMPETITORS, sources_for
+from app.db.sources import sources_for
+from app.eval.companies import BACKTEST_COMPANIES as COMPETITORS
 from app.db.session import audit_into, init_db, session_scope
 from app.detect import detectors as det
 from app.detect.normalize import persist

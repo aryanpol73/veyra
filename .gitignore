@@ -9,3 +9,7 @@ node_modules/
 frontend/dist/
 frontend/*.tsbuildinfo
 data/eval/
+data/backup-*/
+data/reports/
+data/reports_test/
+.claude/

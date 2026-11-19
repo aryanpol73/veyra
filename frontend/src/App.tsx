@@ -1,12 +1,15 @@
-import { ComponentType, useEffect, useState } from "react";
+import { ComponentType, Suspense, lazy, useEffect, useState } from "react";
 import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import Overview from "./pages/Overview";
-import Competitors from "./pages/Competitors";
-import Feed from "./pages/Feed";
-import Hypotheses from "./pages/Hypotheses";
-import Evaluation from "./pages/Evaluation";
-import Ask from "./pages/Ask";
-import Reports from "./pages/Reports";
+// Other pages load on demand: charts (recharts) and Markdown (marked + DOMPurify) stay out of the first load.
+const Competitors = lazy(() => import("./pages/Competitors"));
+const Feed = lazy(() => import("./pages/Feed"));
+const Hypotheses = lazy(() => import("./pages/Hypotheses"));
+const Evaluation = lazy(() => import("./pages/Evaluation"));
+const Ask = lazy(() => import("./pages/Ask"));
+const Reports = lazy(() => import("./pages/Reports"));
+import Login from "./pages/Login";
+import { api, AuthStatus, UNAUTHORIZED } from "./api/client";
 import {
   IconAsk, IconCompetitors, IconEval, IconFeed, IconHypothesis, IconMoon, IconOverview, IconReports, IconSun, VeyraMark,
 } from "./components/icons";
@@ -51,6 +54,16 @@ function ThemeToggle({ dark, toggle, compact }: { dark: boolean; toggle: () => v
   );
 }
 
+function NotFound() {
+  return (
+    <div className="py-20 text-center">
+      <p className="font-mono text-xs uppercase tracking-[0.14em] text-muted">404</p>
+      <h1 className="mt-2 font-display text-2xl font-bold text-ink">No such page</h1>
+      <NavLink to="/" className="mt-4 inline-block text-sm text-accent underline underline-offset-4">Back to Overview</NavLink>
+    </div>
+  );
+}
+
 function Brand() {
   return (
     <div className="flex items-center gap-2.5">
@@ -63,9 +76,40 @@ function Brand() {
   );
 }
 
+function useAuth(): [AuthStatus | null, () => void, () => void] {
+  const [st, setSt] = useState<AuthStatus | null>(null);
+  const refresh = () => {
+    api.get<AuthStatus>("/auth/status").then(setSt).catch(() => setSt({ enabled: false, authenticated: true }));
+  };
+  useEffect(() => {
+    refresh();
+    const onUnauth = () => setSt((s) => (s ? { ...s, authenticated: false } : s));
+    window.addEventListener(UNAUTHORIZED, onUnauth);
+    return () => window.removeEventListener(UNAUTHORIZED, onUnauth);
+  }, []);
+  const logout = () => { api.post("/auth/logout").finally(refresh); };
+  return [st, refresh, logout];
+}
+
+function useOnline(): boolean {
+  const [online, setOnline] = useState(() => navigator.onLine);
+  useEffect(() => {
+    const on = () => setOnline(true), off = () => setOnline(false);
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+    return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
+  }, []);
+  return online;
+}
+
 export default function App() {
   const [dark, toggle] = useTheme();
   const { pathname } = useLocation();
+  const [auth, refreshAuth, logout] = useAuth();
+  const online = useOnline();
+
+  if (auth === null) return <div className="min-h-dvh" aria-busy="true" />;
+  if (auth.enabled && !auth.authenticated) return <Login onDone={refreshAuth} />;
 
   return (
     <div className="flex min-h-dvh flex-col md:flex-row">
@@ -104,6 +148,11 @@ export default function App() {
         </nav>
         <div className="space-y-3 border-t border-line p-4">
           <ThemeToggle dark={dark} toggle={toggle} />
+          {auth.enabled && (
+            <button onClick={logout} className="inline-flex h-9 w-full cursor-pointer items-center rounded-[6px] border border-line bg-surface px-3 font-mono text-xs text-ink-2 transition-colors hover:border-line-strong hover:text-ink">
+              Sign out
+            </button>
+          )}
           <p className="font-mono text-[10.5px] leading-relaxed text-muted">Scores are heuristic until calibrated on the Evaluation page.</p>
         </div>
       </aside>
@@ -112,7 +161,10 @@ export default function App() {
       <header className="sticky top-0 z-30 border-b border-line bg-[color-mix(in_srgb,var(--bg-deep)_90%,transparent)] backdrop-blur-md md:hidden">
         <div className="flex items-center justify-between px-4 py-2.5">
           <Brand />
-          <ThemeToggle dark={dark} toggle={toggle} compact />
+          <div className="flex items-center gap-2">
+            {auth.enabled && <button onClick={logout} className="h-10 cursor-pointer rounded-[6px] border border-line bg-surface px-3 font-mono text-xs text-ink-2 hover:text-ink">Sign out</button>}
+            <ThemeToggle dark={dark} toggle={toggle} compact />
+          </div>
         </div>
         <nav aria-label="Primary" className="scroll-thin -mb-px overflow-x-auto">
           <ul className="flex gap-1 px-2">
@@ -142,7 +194,13 @@ export default function App() {
           </div>
           <div className="scanline anim-scanline absolute inset-x-0 top-0 h-40" />
         </div>
+        {!online && (
+          <div role="status" className="relative z-10 border-b border-line bg-surface px-4 py-2 text-center font-mono text-xs text-ink-2">
+            You're offline. Veyra shows the app, but data needs a connection to the server.
+          </div>
+        )}
         <div key={pathname} className="anim-route relative mx-auto w-full max-w-[1240px] px-4 pb-16 pt-6 md:px-8 md:pt-8">
+          <Suspense fallback={<div className="py-16 text-center font-mono text-xs text-muted" aria-busy="true">Loading…</div>}>
           <Routes>
             <Route path="/" element={<Overview />} />
             <Route path="/competitors" element={<Competitors />} />
@@ -151,7 +209,9 @@ export default function App() {
             <Route path="/ask" element={<Ask />} />
             <Route path="/evaluation" element={<Evaluation />} />
             <Route path="/reports" element={<Reports />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
+          </Suspense>
         </div>
       </main>
     </div>

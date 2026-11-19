@@ -1,0 +1,36 @@
+# docker compose up -d --build     ->  http://localhost:8000
+# Requires in .env: LLM_API_KEY, VEYRA_ADMIN_PASSWORD (10+ chars), VEYRA_SECRET_KEY (32+ random chars).
+services:
+  veyra:
+    build: .
+    image: veyra:latest
+    container_name: veyra
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      VEYRA_ENV: production
+      VEYRA_DATA_DIR: /data
+      # Browsers only send Secure cookies over HTTPS (localhost counts as secure). For plain-HTTP access from
+      # another device on your LAN, set VEYRA_COOKIE_SECURE=false in .env; behind an HTTPS proxy keep it true.
+      VEYRA_COOKIE_SECURE: ${VEYRA_COOKIE_SECURE:-true}
+    ports:
+      - "${VEYRA_PORT:-8000}:8000"
+    volumes:
+      - veyra-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=4).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+volumes:
+  veyra-data:

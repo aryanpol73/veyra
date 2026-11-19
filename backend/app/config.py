@@ -9,13 +9,18 @@ LLM access goes through any OpenAI-compatible endpoint. Presets:
 from __future__ import annotations
 
 from functools import lru_cache
+import os
 from pathlib import Path
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 REPO_DIR = BACKEND_DIR.parent
-DATA_DIR = REPO_DIR / "data"
+# Runtime state (database, fetch cache, eval runs, briefs). Docker points this at a volume.
+DATA_DIR = Path(os.environ.get("VEYRA_DATA_DIR") or (REPO_DIR / "data")).resolve()
+# Frozen backtest dataset: shipped with the code, read-only, so it stays in the repo even when DATA_DIR moves.
+REPLAY_DATA_DIR = REPO_DIR / "data" / "replay"
 
 PROVIDER_PRESETS: dict[str, dict[str, str]] = {
     "groq": {
@@ -53,6 +58,13 @@ class Settings(BaseSettings):
     llm_max_wait_s: float = 2700  # wait up to 45 min on a provider rate limit (e.g. Groq daily cap) before failing
     llm_max_tokens: int = 4096  # reasoning models (gpt-oss) spend part of this on hidden reasoning
 
+    # --- deployment / security ---
+    env: str = Field(default="development", validation_alias=AliasChoices("VEYRA_ENV"))
+    admin_password: str = Field(default="", validation_alias="VEYRA_ADMIN_PASSWORD")
+    secret_key: str = Field(default="", validation_alias="VEYRA_SECRET_KEY")
+    cookie_secure_override: bool | None = Field(default=None, validation_alias="VEYRA_COOKIE_SECURE")
+    log_level: str = "INFO"
+
     # --- storage ---
     db_url: str = f"sqlite:///{(DATA_DIR / 'veyra.db').as_posix()}"
 
@@ -82,6 +94,25 @@ class Settings(BaseSettings):
 
     # --- notifications (optional) ---
     slack_webhook_url: str = ""
+
+    @property
+    def production(self) -> bool:
+        return self.env.lower() in ("production", "prod")
+
+    @property
+    def cookie_secure(self) -> bool:
+        """Secure cookies need HTTPS; default on in production. Set VEYRA_COOKIE_SECURE=false for plain-HTTP LAN use."""
+        return self.production if self.cookie_secure_override is None else self.cookie_secure_override
+
+    def check_production(self) -> list[str]:
+        """Problems that must stop a production start (an open, unauthenticated instance spends your API key)."""
+        problems = []
+        if self.production:
+            if len(self.admin_password) < 10:
+                problems.append("VEYRA_ADMIN_PASSWORD must be set (at least 10 characters)")
+            if len(self.secret_key) < 32:
+                problems.append("VEYRA_SECRET_KEY must be set (at least 32 random characters)")
+        return problems
 
     @property
     def preset(self) -> dict[str, str]:

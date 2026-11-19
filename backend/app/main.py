@@ -13,11 +13,12 @@ from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from app import cycle, llm
+from app.auth import AuthMiddleware, router as auth_router
 from app.config import get_settings
 from app.belief.engine import band_label
 from app.db.models import (Alert, AgentRun, BeliefHistory, Competitor, Hypothesis, HypothesisEvidence, Investigation,
                            Prediction, Signal, SkepticChallenge, Source, UserFeedback)
-from app.db.seed import sources_for
+from app.db.sources import sources_for
 from app.db.session import get_db, init_db
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -39,13 +40,21 @@ async def lifespan(_: FastAPI):
         sched.shutdown(wait=False)
 
 
-app = FastAPI(title="Veyra", version="0.1.0", lifespan=lifespan)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app = FastAPI(title="Veyra", version="1.0.0", lifespan=lifespan,
+              docs_url=None if get_settings().production else "/docs",
+              redoc_url=None, openapi_url=None if get_settings().production else "/openapi.json")
+app.add_middleware(AuthMiddleware)
+if not get_settings().production:  # dev only: the Vite dev server proxies /api, so CORS is rarely needed
+    app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+                       allow_methods=["*"], allow_headers=["*"], allow_credentials=True)
+app.include_router(auth_router)
+
+
+@app.get("/healthz", include_in_schema=False)
+def healthz(db: Session = Depends(get_db)):
+    """Liveness/readiness for Docker: public, reveals nothing but ok/not ok."""
+    db.execute(text("SELECT 1"))
+    return {"status": "ok"}
 
 
 # ---------- schemas ----------
@@ -401,9 +410,7 @@ def eval_latest(mode: str | None = None, db: Session = Depends(get_db)):
     if mode:
         q = q.where(EvalRun.contamination_mode == mode)
     r = db.scalars(q.limit(1)).first()
-    if not r:
-        raise HTTPException(404, "no evaluation run yet: POST /eval/run or `python -m app.eval.run_eval`")
-    return _eval_out(r)
+    return _eval_out(r) if r else None  # "no run yet" is a normal empty state, not an error
 
 
 @app.get("/eval/runs/{rid}")

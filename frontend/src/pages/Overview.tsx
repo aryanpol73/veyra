@@ -92,7 +92,30 @@ export default function Overview() {
         description="What changed across tracked competitors, which hypotheses are moving, and which alerts fired."
         actions={<button className={btnSecondaryCls} onClick={() => { reload(); reloadAlerts(); }}><IconRefresh />Refresh</button>}
       />
-      {(err || alertErr) && <ErrorBox error={`Backend unreachable: ${err ?? alertErr}. Is FastAPI running on :8000?`} />}
+      {(err || alertErr) && <ErrorBox error={`Couldn't load the overview: ${err ?? alertErr}`} />}
+
+      {k && k.competitors === 0 && (
+        <section aria-labelledby="welcome" className="rounded-[12px] border border-line bg-surface p-6">
+          <h2 id="welcome" className="font-display text-lg font-semibold text-ink">Welcome to Veyra</h2>
+          <p className="mt-1 max-w-[65ch] text-sm text-ink-2">
+            Veyra is empty until you tell it who to watch. It works for companies in any field.
+          </p>
+          <ol className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+            {[
+              ["Add a competitor", "Type its domain on Competitors and press Discover; Veyra finds its pricing page, feeds and job board."],
+              ["Run a cycle", "On the Intelligence Feed, press Run cycle now to collect signals from every source."],
+              ["Read the hypotheses", "With an LLM key in .env, the agents form, investigate and challenge hypotheses."],
+            ].map(([title, body], i) => (
+              <li key={title} className="rounded-[8px] border border-line p-3">
+                <div className="font-mono text-[11px] text-accent">{String(i + 1).padStart(2, "0")}</div>
+                <div className="mt-1 font-medium text-ink">{title}</div>
+                <p className="mt-1 text-xs text-ink-2">{body}</p>
+              </li>
+            ))}
+          </ol>
+          <Link to="/competitors" className={`${btnCls} mt-5 inline-flex`}>Add your first competitor<IconArrowRight size={14} /></Link>
+        </section>
+      )}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {k ? (

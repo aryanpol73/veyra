@@ -22,11 +22,11 @@ from app.collectors import wayback
 from app.collectors.base import sha
 from app.collectors.news import _entry_dt, canonical_url, normalize_title
 from app.collectors.pages import html_to_text
-from app.config import DATA_DIR
-from app.db.seed import COMPETITORS
+from app.config import REPLAY_DATA_DIR
+from app.eval.companies import BACKTEST_COMPANIES as COMPETITORS
 
 log = logging.getLogger("veyra.dataset")
-REPLAY_DIR = DATA_DIR / "replay"
+REPLAY_DIR = REPLAY_DATA_DIR
 
 
 def slug(name: str) -> str:

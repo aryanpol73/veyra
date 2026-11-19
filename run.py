@@ -1,6 +1,6 @@
 """One command to start Veyra:  python run.py
 Starts FastAPI on :8000 and the Vite dashboard on :5173. Ctrl+C stops both (and their child processes).
-First run: creates backend/.venv, installs deps, copies .env, seeds the DB, runs npm install.
+First run: creates backend/.venv, installs deps, copies .env, runs npm install. The app starts empty: add competitors in the UI.
 """
 from __future__ import annotations
 
@@ -76,7 +76,6 @@ def setup() -> Path:
         shutil.copy(ROOT / ".env.example", ROOT / ".env")
         print("Created .env from .env.example. Add your Groq key to LLM_API_KEY (the dashboard works without one, "
               "but agents and chat need it).", flush=True)
-    sh([str(py), "-m", "app.db.seed"], BACKEND)
     if not (FRONTEND / "node_modules").exists():
         sh([NPM, "install", "--no-fund", "--no-audit"], FRONTEND)
     return py

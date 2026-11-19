@@ -46,7 +46,41 @@ flowchart LR
 Only the strategist, investigator, skeptic, chat and reporter call an LLM. Fetching, diffing, dedup, scoring, alert rules
 and scheduling are plain Python.
 
-## Quick start
+## Deploy with Docker (production)
+
+One container serves the app and API on one origin, with a login, security headers and a persistent data volume.
+
+1. Install Docker Desktop and start it.
+2. Copy `.env.example` to `.env` and set three values:
+   ```ini
+   LLM_API_KEY=gsk_...
+   VEYRA_ADMIN_PASSWORD=choose-a-long-password      # 10+ characters; protects every page and API call
+   VEYRA_SECRET_KEY=...                              # python -c "import secrets; print(secrets.token_hex(32))"
+   ```
+3. Start it:
+   ```bash
+   docker compose up -d --build
+   ```
+4. Open http://localhost:8000 and sign in. To install it as an app, use the **Install** icon in the browser's address bar
+   (Chrome or Edge), or **Share → Add to Home Screen** on iOS.
+
+**What production mode gives you:**
+- **Login:** a single admin password with HMAC-signed, HttpOnly, SameSite=Strict session cookies, a CSRF header on
+  every write, and 5 failed attempts per IP locking login for 15 minutes.
+- **Fails closed:** with `VEYRA_ENV=production`, the server **refuses to start** without a strong password and secret
+  key, so it can't run unprotected by accident.
+- **Locked-down responses:** a strict Content-Security-Policy, X-Frame-Options DENY and nosniff; API docs are turned
+  off; errors never include stack traces; private API data is never cached.
+- **Hardened container:** non-root user, read-only filesystem, `no-new-privileges`, a health check (`/healthz`),
+  automatic restart and rotated logs.
+- **Data:** the database, cache, briefs and backtest runs live in the `veyra-data` volume. Back it up with
+  `docker run --rm -v veyra-data:/data -v "%cd%":/b alpine tar czf /b/veyra-data.tgz -C /data .`
+
+**HTTPS:** the session cookie is `Secure`. Browsers allow that on `http://localhost`, but from another device you
+need HTTPS: put Caddy, nginx or Cloudflare Tunnel in front. For plain-HTTP access on your own network only, set
+`VEYRA_COOKIE_SECURE=false`.
+
+## Local development
 
 You need **Python 3.11+** (the python.org installer; on Windows run `py -3.11`), **Node.js 20+** and, for the agents and
 chat, a free **Groq API key** from [console.groq.com/keys](https://console.groq.com/keys).
@@ -55,9 +89,10 @@ chat, a free **Groq API key** from [console.groq.com/keys](https://console.groq.
 py -3.11 run.py
 ```
 
-The first run creates `backend/.venv`, installs dependencies, copies `.env.example` to `.env`, seeds 3 competitors
-(Vercel, Figma, Airtable) and runs `npm install`. It then serves the dashboard at http://localhost:5173 and the API docs at
-http://127.0.0.1:8000/docs. **Ctrl+C** stops both servers, including their child processes.
+The first run creates `backend/.venv`, installs dependencies, copies `.env.example` to `.env` and runs `npm install`. It
+then serves the dashboard at http://localhost:5173 and the API docs at http://127.0.0.1:8000/docs. **Ctrl+C** stops both
+servers, including their child processes. The app starts **empty**: the Overview walks you through adding your first
+competitor. Login is off in development unless you set `VEYRA_ADMIN_PASSWORD`.
 
 Put your key in `.env` (never commit it; `.env` is git-ignored):
 
@@ -86,17 +121,18 @@ and the agents are skipped.
 | **Overview** | KPIs, top hypotheses, high-priority signals, and alerts with **Useful / Noise** buttons |
 | **Hypotheses** (flagship) | Status and confidence band, evidence for and against with links and weights, belief-over-time chart, skeptic alternatives with the test each ran and its verdict, investigation log, predictions |
 | **Intelligence Feed** | Typed signals filtered by competitor, category and priority; **Run cycle now**; badges for Early Signal, Removal, Synthetic and Replay |
-| **Competitors** | Track **any company in any field**: type its domain and press **Discover**. Veyra finds the pricing page, changelog, RSS feeds and Greenhouse/Lever job board for you to review. The 3 seeded companies are only demo data; delete them freely. |
+| **Competitors** | Track **any company in any field**: type its domain and press **Discover**. Veyra finds the pricing page, changelog, RSS feeds and Greenhouse/Lever job board for you to review. |
 | **Ask Veyra** | Chat grounded in the database, with cited sources and belief timelines |
 | **Evaluation** | Backtest metrics, calibration with Wilson intervals, the contamination-mode switch and a caveat banner |
 | **Reports** | Archive of daily briefs: generate one and read it |
 
-Main API endpoints:
+Main API endpoints (under `/api` in production):
 - **Competitors and data:** `GET/POST/PUT/DELETE /competitors`, `GET /signals`, `GET /hypotheses`, `GET /hypotheses/{id}`, `GET /alerts`
 - **Cycles:** `POST /cycle/run` (body `{"collect": true, "agents": true}`), `GET /cycle/status`
 - **Alerts:** `POST /alerts/{id}/feedback`
 - **Chat and briefs:** `POST /chat`, `POST /reports/daily`, `GET /reports`
 - **Evaluation:** `POST /eval/run`, `GET /eval/runs/latest`
+- **Auth and health:** `POST /auth/login`, `POST /auth/logout`, `GET /auth/status`, `GET /healthz` (public)
 
 ## How the agent core works
 
@@ -195,7 +231,7 @@ LinkedIn, review sites and social platforms are deliberately not scraped.
 ## Tests
 
 ```bash
-cd backend && .venv/Scripts/python -m pytest -q      # 66 tests, no network, no LLM
+cd backend && .venv/Scripts/python -m pytest -q      # 84 tests, no network, no LLM
 ```
 
 They cover:
@@ -243,6 +279,10 @@ data/replay/    frozen Wayback dataset (committed); veyra.db, cache/, eval/, rep
   unmasked pair takes two days.
 - Groq's model lineup changes. If a model 404s, set `LLM_STRONG` / `LLM_FAST` in `.env`.
 
+**Deployment**
+- Single admin, single tenant; no user accounts or roles.
+- One server process by design (in-process cycle status and one SQLite writer), so scale up, not out.
+
 **Not built yet**
 - Alert feedback is stored but not learned from.
-- There's no auth or multi-tenancy, and no scheduler unless `SCHEDULER_ENABLED=true`.
+- No scheduler unless `SCHEDULER_ENABLED=true`; otherwise cycles run when you press **Run cycle now**.

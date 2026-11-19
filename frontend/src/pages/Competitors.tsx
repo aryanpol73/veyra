@@ -129,7 +129,7 @@ export default function Competitors() {
           </Card>
         </div>
       )}
-      {list && list.length === 0 && <Empty>No competitors yet. Run <code className="font-mono text-ink-2">python -m app.db.seed</code> or add one.</Empty>}
+      {list && list.length === 0 && <Empty>No competitors yet. Press <b>Add competitor</b>, type any company's domain and press <b>Discover</b>.</Empty>}
       {!list && !err && <div className="grid gap-3">{[0, 1].map((i) => <div key={i} className="rounded-[12px] border border-line bg-surface p-4"><Skeleton className="h-4 w-40" /><Skeleton className="mt-4 h-3 w-full" /><Skeleton className="mt-2 h-3 w-5/6" /></div>)}</div>}
       <div className="grid gap-4">
         {list?.map((c, i) => (

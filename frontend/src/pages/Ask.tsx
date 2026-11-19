@@ -9,8 +9,8 @@ import Markdown from "../components/Markdown";
 interface Turn { role: "user" | "assistant"; content: string; reply?: ChatReply }
 
 const SUGGESTIONS = [
-  "How has Vercel's pricing strategy evolved?",
-  "What is Figma doing with AI, and how sure are we?",
+  "How has each competitor's pricing evolved?",
+  "Which competitor is most likely changing strategy, and how sure are we?",
   "Which hypotheses did the skeptic weaken, and why?",
   "Compare recent pricing changes across competitors",
 ];

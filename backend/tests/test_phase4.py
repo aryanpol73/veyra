@@ -88,11 +88,11 @@ def test_chat_tool_budget_forces_an_answer(db, monkeypatch):
     assert len(out["tool_calls"]) == chat.MAX_TOOL_CALLS and out["answer"] == "Best effort answer."
 
 
-def test_brief_template_mode(db, monkeypatch):
+def test_brief_template_mode(db, monkeypatch, tmp_path):
     from app.config import get_settings
     from app.reports import brief
 
-    monkeypatch.setattr(brief, "REPORTS_DIR", brief.REPORTS_DIR.parent / "reports_test")
+    monkeypatch.setattr(brief, "REPORTS_DIR", tmp_path / "reports")
     assert not get_settings().llm_configured  # tests run without an LLM key
     out = brief.generate(db, since=NOW - timedelta(days=1))
     md = out["markdown"]

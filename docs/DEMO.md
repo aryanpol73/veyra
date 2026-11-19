@@ -1,5 +1,9 @@
 # Veyra demo script (3–4 minutes)
 
+> This script walks through the **pilot backtest companies** (Vercel, Figma, Airtable). A fresh install starts empty, so
+> before demoing either add those companies (Competitors → Discover) and run a cycle, or import the backtest run (step 2
+> below), whose hypotheses appear with a Replay badge.
+
 Everything below exists in the database after the steps in **Before the demo**. Hypothesis numbers (H1, H5, H7) are this
 machine's IDs; search by the statement if yours differ.
 
