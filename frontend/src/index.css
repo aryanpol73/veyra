@@ -2,27 +2,191 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ───────────────────────── Veyra "Instrument" tokens ─────────────────────────
+   Light = warm paper, Dark = graphite. One accent (signal amber), tuned per theme
+   for >= 4.5:1 text contrast on its surface. Semantic tones carry text + glyph,
+   never colour alone. */
 :root {
   color-scheme: light;
-}
-.dark {
-  color-scheme: dark;
-}
-body {
-  @apply bg-zinc-50 text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-100;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --bg: #f3f1ec;
+  --surface: #ffffff;
+  --surface-2: #f8f7f3;
+  --sunken: #eeebe5;
+  --line: #e2ded6;
+  --line-strong: #c9c3b8;
+  --ink: #15171a;
+  --ink-2: #3b4046;
+  --muted: #5f646b;
+  --accent: #b93d0a;
+  --accent-hover: #9a3208;
+  --on-accent: #ffffff;
+  --accent-soft: #fbe9df;
+  --focus: #b93d0a;
+
+  --ok: #166534;   --ok-bg: #e6f3ea;   --ok-line: #9fd0ae;
+  --warn: #855400; --warn-bg: #fbf0d6; --warn-line: #e3c57a;
+  --bad: #b42318;  --bad-bg: #fcebe9;  --bad-line: #eeaaa3;
+  --info: #1d4ed8; --info-bg: #e7eefc; --info-line: #a9c0f2;
+  --synth: #86198f; --synth-bg: #f7e8f9; --synth-line: #d9a3df;
+  --neutral: #3b4046; --neutral-bg: #eeebe5; --neutral-line: #d4cfc5;
+
+  /* charts: one hue per series */
+  --series-1: #b93d0a;
+  --chart-grid: #e2ded6;
+  --chart-ink: #5f646b;
+  --chart-surface: #ffffff;
+
+  --hatch: color-mix(in srgb, var(--accent) 28%, transparent);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* chart tokens (dataviz reference palette, slot 1; dark mode is its own validated step) */
-:root {
-  --series-1: #2a78d6;
-  --chart-grid: #e4e4e7;
-  --chart-ink: #52514e;
-  --chart-surface: #ffffff;
-}
 .dark {
-  --series-1: #3987e5;
-  --chart-grid: #3f3f46;
-  --chart-ink: #c3c2b7;
-  --chart-surface: #18181b;
+  color-scheme: dark;
+  --bg: #0b0c0e;
+  --surface: #121417;
+  --surface-2: #171a1e;
+  --sunken: #0e1012;
+  --line: #24282e;
+  --line-strong: #363b43;
+  --ink: #eceef0;
+  --ink-2: #b9bec5;
+  --muted: #8e949c;
+  --accent: #ff8a3d;
+  --accent-hover: #ffa364;
+  --on-accent: #120a04;
+  --accent-soft: #2a1a10;
+  --focus: #ff8a3d;
+
+  --ok: #6fe0a3;   --ok-bg: #10241a;   --ok-line: #24553a;
+  --warn: #f3c552; --warn-bg: #261f0c; --warn-line: #5a4716;
+  --bad: #ff8b82;  --bad-bg: #2a1311;  --bad-line: #6a2a25;
+  --info: #84bfff; --info-bg: #0f1d2e; --info-line: #27466b;
+  --synth: #e5a3ff; --synth-bg: #24132b; --synth-line: #5a2d6b;
+  --neutral: #b9bec5; --neutral-bg: #1b1e23; --neutral-line: #363b43;
+
+  --series-1: #ff8a3d;
+  --chart-grid: #2a2e35;
+  --chart-ink: #9aa0a8;
+  --chart-surface: #121417;
 }
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-sunken: var(--sunken);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-on-accent: var(--on-accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+  --color-info: var(--info);
+  --color-synth: var(--synth);
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", "Segoe UI Mono", Menlo, Consolas, monospace;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-feature-settings: "tnum" 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* faint measuring grid behind the canvas — the "instrument" backdrop */
+.canvas-grid {
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--line) 55%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--line) 55%, transparent) 1px, transparent 1px);
+  background-size: 48px 48px;
+  background-position: -1px -1px;
+  mask-image: linear-gradient(to bottom, black 0, transparent 280px);
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* hatched fill = "heuristic, not calibrated" */
+.hatch {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--accent) 0 2px,
+    color-mix(in srgb, var(--accent) 55%, transparent) 2px 4px
+  );
+}
+.hatch-soft {
+  background-image: repeating-linear-gradient(-45deg, var(--hatch) 0 1px, transparent 1px 5px);
+}
+
+/* ───────────── motion (transform/opacity only; disabled for reduced motion) ───────────── */
+@keyframes v-rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes v-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes v-fill {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+@keyframes v-needle {
+  from { transform: translateX(var(--from, 0)); }
+}
+@keyframes v-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+@keyframes v-scan {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(400%); }
+}
+
+.anim-route { animation: v-fade 220ms var(--ease-out) both; }
+.anim-rise { animation: v-rise 360ms var(--ease-out) both; animation-delay: calc(var(--i, 0) * 35ms); }
+.anim-fill { transform-origin: left center; animation: v-fill 700ms var(--ease-out) both; }
+.anim-pulse { animation: v-pulse 1.4s ease-in-out infinite; }
+.anim-scan { animation: v-scan 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* native disclosure marker replaced by a chevron that rotates */
+details > summary { list-style: none; }
+details > summary::-webkit-details-marker { display: none; }
+details[open] > summary .chev { transform: rotate(90deg); }
+
+/* thin, themed scrollbars for inner scroll regions */
+.scroll-thin { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
