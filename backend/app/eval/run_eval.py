@@ -33,6 +33,8 @@ def main() -> int:
     ap.add_argument("--classify", choices=["rules", "llm"], default="rules",
                     help="signal classification in replay: deterministic rules (default; saves ~45%% of tokens and removes "
                          "a contamination channel) or the LLM classifier the live system uses")
+    ap.add_argument("--score-only", metavar="REPLAY_DB", help="score an existing replay DB (e.g. an interrupted run) "
+                    "without re-running the replay; tokens are read from its agent_runs")
     a = ap.parse_args()
 
     # Point the app at a fresh replay DB BEFORE importing anything that creates the engine.
@@ -42,7 +44,10 @@ def main() -> int:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     eval_dir = DATA_DIR / "eval"
     eval_dir.mkdir(parents=True, exist_ok=True)
-    replay_db = eval_dir / f"replay_{a.mode}_{stamp}.db"
+    replay_db = Path(a.score_only).resolve() if a.score_only else eval_dir / f"replay_{a.mode}_{stamp}.db"
+    if a.score_only and not replay_db.exists():
+        print(f"no such replay DB: {replay_db}")
+        return 2
     os.environ["DB_URL"] = f"sqlite:///{replay_db.as_posix()}"
 
     from app.config import get_settings
@@ -56,8 +61,11 @@ def main() -> int:
     s.classify_with_llm = a.classify == "llm"
     print(f"replay {a.mode}: {start:%Y-%m-%d} -> {end:%Y-%m-%d}, db {replay_db.name}, LLM "
           f"{s.llm_provider}/{s.model_strong if s.llm_configured else 'NOT CONFIGURED'}", flush=True)
-    logs = run_replay(monthly_steps(start, end), mode="none" if a.mode == "post_cutoff" else a.mode,
-                      agents=not a.no_agents, progress=lambda m: print(m, flush=True))
+    if a.score_only:
+        logs = []
+    else:
+        logs = run_replay(monthly_steps(start, end), mode="none" if a.mode == "post_cutoff" else a.mode,
+                          agents=not a.no_agents, progress=lambda m: print(m, flush=True))
 
     events = M.load_ground_truth()
     if a.mode == "post_cutoff":
@@ -69,13 +77,20 @@ def main() -> int:
         from app.db.models import AgentRun
 
         failed = db.execute(_select(AgentRun.kind, AgentRun.error).where(AgentRun.error.is_not(None))).all()
+        from sqlalchemy import func as _func
+
+        graph_tokens = db.scalar(_select(_func.sum(AgentRun.tokens_in)).where(AgentRun.kind == "agent_graph")) or 0
+        steps_seen = [str(t) for t in db.scalars(_select(_func.distinct(_func.date(AgentRun.input["as_of"].as_string())))
+                                                  .where(AgentRun.kind == "agent_graph"))]
     result = M.to_dict(metrics)
     result["config"].update(mode=a.mode, model_strong=s.model_strong, model_fast=s.model_fast, provider=s.llm_provider,
                             model_cutoff=MODEL_CUTOFF.isoformat(), replay_db=replay_db.name, agents=not a.no_agents,
                             possibly_contaminated=a.mode == "none", classification=a.classify,
                             llm_errors=len(failed), llm_error_kinds=sorted({k for k, _ in failed}),
                             degraded=any(k in ("strategist", "skeptic", "skeptic_verdict") for k, _ in failed),
-                            steps=[l["as_of"] for l in logs], tokens=sum((ag.get("tokens") or 0) for l in logs for ag in l["agents"]))
+                            steps=[l["as_of"] for l in logs] or sorted(x for x in steps_seen if x and x != "None"),
+                            tokens=sum((ag.get("tokens") or 0) for l in logs for ag in l["agents"]) or graph_tokens,
+                            scored_existing_db=bool(a.score_only))
     if a.synthetic:
         result["synthetic_test"] = synthetic_injection()
 

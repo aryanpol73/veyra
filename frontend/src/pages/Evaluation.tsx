@@ -156,7 +156,19 @@ export default function Evaluation() {
                 <tr key={b.bin} className="border-t border-zinc-200 dark:border-zinc-800"><td className="py-0.5">{b.bin} [{b.range[0]}, {b.range[1]})</td><td>{b.n}</td><td>{b.hits}</td><td>{fmt(b.mean_confidence)}</td><td>{fmt(b.observed_rate)}</td>
                   <td>{b.wilson_95 ? `[${fmt(b.wilson_95[0])}, ${fmt(b.wilson_95[1])}]` : "n/a"}</td></tr>))}</tbody>
             </table>
-            <p className="mt-2 text-xs text-zinc-500">Dashed line = perfect calibration. A "hit" is a hypothesis that matched a real labelled event.</p>
+            <p className="mt-2 text-xs text-zinc-500">Dashed line = perfect calibration. A "hit" is a hypothesis that matched a real labelled event. Bins use each hypothesis's final confidence (pre-declared).</p>
+            {m.calibration_peak?.length > 0 && (
+              <details className="mt-3 text-xs">
+                <summary className="cursor-pointer text-zinc-600 dark:text-zinc-400">Secondary view: peak confidence (added after the first run)</summary>
+                <p className="mt-1 text-zinc-500">Recency decay lowers a hypothesis's final score even when it was right earlier in the window, so this view bins each hypothesis by its highest confidence instead. Brier (peak) {fmt(m.brier_hypotheses_peak, 3)}.</p>
+                <table className="mt-1 w-full">
+                  <thead className="text-left text-zinc-500"><tr><th>bin</th><th>n</th><th>hits</th><th>mean conf</th><th>observed</th><th>Wilson 95%</th></tr></thead>
+                  <tbody className="tabular-nums">{m.calibration_peak.map((b) => (
+                    <tr key={b.bin} className="border-t border-zinc-200 dark:border-zinc-800"><td className="py-0.5">{b.bin}</td><td>{b.n}</td><td>{b.hits}</td><td>{fmt(b.mean_confidence)}</td><td>{fmt(b.observed_rate)}</td>
+                      <td>{b.wilson_95 ? `[${fmt(b.wilson_95[0])}, ${fmt(b.wilson_95[1])}]` : "n/a"}</td></tr>))}</tbody>
+                </table>
+              </details>
+            )}
           </Card>
 
           <Card title="Ground-truth events">

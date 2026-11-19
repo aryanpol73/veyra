@@ -157,3 +157,13 @@ def test_likely_requires_a_skeptic_challenge(db):
     db.flush()
     judge.rescore(db, h, NOW, "after skeptic")
     assert h.status == "likely"
+
+
+def test_lenient_contracts_still_guard_evidence():
+    from app.agents.schemas import InvestigatorStep
+
+    assert InvestigatorStep.model_validate({"observation": "done"}).action == "stop"
+    p = TestablePrediction(claim="Acme launches an AI thing", horizon_days=30, signal_types=["rumour", "feature_launch"], keywords=["AI"])
+    assert p.signal_types == ["feature_launch"]
+    with pytest.raises(ValidationError):  # citations are still mandatory
+        Finding(summary="it seems true", stance="supports", relevance=0.5)

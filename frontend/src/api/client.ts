@@ -158,7 +158,7 @@ export interface EvalRun {
     precision: number | null; recall: number | null; fp_rate: number | null; false_alarms_per_competitor_month: number | null;
     lead_days: number[]; lead_median: number | null; early_detections: number;
     brier_hypotheses: number | null; brier_predictions: number | null; n_predictions_resolved: number;
-    calibration: CalibrationBin[]; events: EvalEventRow[]; config: Record<string, any>;
+    calibration: CalibrationBin[]; calibration_peak: CalibrationBin[]; brier_hypotheses_peak: number | null; events: EvalEventRow[]; config: Record<string, any>;
     hypotheses: { id: number; competitor: string; statement: string; final_confidence: number; detected_at: string | null; matched_event: string | null }[];
     synthetic_test?: { passed: boolean; expectation: string; [k: string]: any };
   };

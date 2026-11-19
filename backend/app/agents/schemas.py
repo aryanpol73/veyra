@@ -41,10 +41,11 @@ class TestablePrediction(BaseModel):
     @field_validator("signal_types")
     @classmethod
     def known_types(cls, v: list[str]) -> list[str]:
-        bad = [t for t in v if t not in SIGNAL_TYPES]
-        if bad:
-            raise ValueError(f"unknown signal types {bad}; use only {SIGNAL_TYPES}")
-        return v
+        """Drop unknown types (one bad type shouldn't discard a whole strategist run); need >= 1 known."""
+        kept = [t for t in v if t in SIGNAL_TYPES]
+        if not kept:
+            raise ValueError(f"no known signal types in {v}; use only {SIGNAL_TYPES}")
+        return kept
 
 
 class NewHypothesis(BaseModel):
@@ -81,7 +82,7 @@ class InvestigatorStep(BaseModel):
     plan: list[str] = Field(default_factory=list, max_length=4)  # sentences, e.g. "Check jobs for ML infra roles"
     observation: str = Field(default="", max_length=500)  # what the last tool result changed
     findings: list[Finding] = Field(default_factory=list, max_length=6)
-    action: Literal[USABLE_TOOLS + ("stop",)]  # type: ignore[valid-type]
+    action: Literal[USABLE_TOOLS + ("stop",)] = "stop"  # type: ignore[valid-type]  # omitted action = stop
     args: dict[str, Any] = Field(default_factory=dict)
     stop_reason: str | None = None
 
@@ -95,8 +96,8 @@ MERE_DISAGREEMENT = re.compile(
 class DiscriminatingTest(BaseModel):
     tool: Literal[USABLE_TOOLS]  # type: ignore[valid-type]
     args: dict[str, Any] = Field(default_factory=dict)
-    favors_alternative_if: str = Field(min_length=8, max_length=300)
-    favors_hypothesis_if: str = Field(min_length=8, max_length=300)
+    favors_alternative_if: str = Field(min_length=3, max_length=400)
+    favors_hypothesis_if: str = Field(min_length=3, max_length=400)
 
 
 class Alternative(BaseModel):

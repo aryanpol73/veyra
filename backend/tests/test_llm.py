@@ -87,3 +87,11 @@ def test_provider_json_rejection_is_retried(fake):
     err = BadRequestError("Failed to validate JSON. Please adjust your prompt.", response=httpx.Response(400, request=req), body=None)
     c = fake([err, '{"ok": true}'])
     assert _call() == Out(ok=True) and c.calls == 2
+
+
+def test_bare_list_is_wrapped(fake):
+    class Many(BaseModel):
+        items: list[int]
+
+    c = fake(['[1, 2, 3]'])
+    assert llm.complete_json(role="fast", system="s", user="u", schema=Many, kind="t") == Many(items=[1, 2, 3])

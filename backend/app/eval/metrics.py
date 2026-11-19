@@ -76,6 +76,10 @@ class Metrics:
     brier_predictions: float | None
     n_predictions_resolved: int
     calibration: list[dict]
+    # secondary view, added after the first (degraded) run showed decay penalising hypotheses that WERE right
+    # earlier in the window: same bins on each hypothesis's peak confidence. The pre-declared metric stays primary.
+    brier_hypotheses_peak: float | None = None
+    calibration_peak: list[dict] = field(default_factory=list)
     events: list[EventResult] = field(default_factory=list)
     hypotheses: list[dict] = field(default_factory=list)
     config: dict = field(default_factory=dict)
@@ -150,18 +154,12 @@ def evaluate(db: Session, events: list[GTEvent], window: tuple[datetime, datetim
     months = max(1.0, (end - start).days / 30.4)
     n_comps = len(comps) or 1
 
-    # hypothesis-level Brier + calibration: final confidence vs "matched a real event"
+    # hypothesis-level Brier + calibration: final confidence vs "matched a real event" (primary, pre-declared)
     ys = [(i["final_confidence"], 1 if i["matched_event"] else 0) for i in info]
+    ys_peak = [(i["max_confidence"], 1 if i["matched_event"] else 0) for i in info]
     brier_h = statistics.mean((p - y) ** 2 for p, y in ys) if ys else None
-    calib = []
-    for name, lo, hi in BINS:
-        members = [(p, y) for p, y in ys if lo <= p < hi]
-        k, n = sum(y for _, y in members), len(members)
-        ci = wilson(k, n)
-        calib.append({"bin": name, "range": [lo, min(hi, 1.0)], "n": n, "hits": k,
-                      "mean_confidence": round(statistics.mean(p for p, _ in members), 3) if members else None,
-                      "observed_rate": round(k / n, 3) if n else None,
-                      "wilson_95": [round(ci[0], 3), round(ci[1], 3)] if ci else None})
+    brier_peak = statistics.mean((p - y) ** 2 for p, y in ys_peak) if ys_peak else None
+    calib, calib_peak = _bins(ys), _bins(ys_peak)
 
     preds = [p for p in db.scalars(select(Prediction)) if p.outcome in ("hit", "miss")]
     brier_p = statistics.mean((p.confidence_at_creation - (1 if p.outcome == "hit" else 0)) ** 2 for p in preds) if preds else None
@@ -175,11 +173,25 @@ def evaluate(db: Session, events: list[GTEvent], window: tuple[datetime, datetim
         lead_days=leads, lead_median=statistics.median(leads) if leads else None, early_detections=sum(1 for x in leads if x > 0),
         brier_hypotheses=round(brier_h, 4) if brier_h is not None else None,
         brier_predictions=round(brier_p, 4) if brier_p is not None else None, n_predictions_resolved=len(preds),
-        calibration=calib, events=results,
+        calibration=calib, brier_hypotheses_peak=round(brier_peak, 4) if brier_peak is not None else None,
+        calibration_peak=calib_peak, events=results,
         hypotheses=[{**i, "detected_at": i["detected_at"].isoformat() if i["detected_at"] else None} for i in info],
         config={"threshold": threshold, "grace_days": grace_days, "window": [start.isoformat(), end.isoformat()],
                 "events_total": len(events), "events_in_window": len(in_window)},
     )
+
+
+def _bins(ys: list[tuple[float, int]]) -> list[dict]:
+    out = []
+    for name, lo, hi in BINS:
+        members = [(p, y) for p, y in ys if lo <= p < hi]
+        k, n = sum(y for _, y in members), len(members)
+        ci = wilson(k, n)
+        out.append({"bin": name, "range": [lo, min(hi, 1.0)], "n": n, "hits": k,
+                    "mean_confidence": round(statistics.mean(p for p, _ in members), 3) if members else None,
+                    "observed_rate": round(k / n, 3) if n else None,
+                    "wilson_95": [round(ci[0], 3), round(ci[1], 3)] if ci else None})
+    return out
 
 
 def to_dict(m: Metrics) -> dict:

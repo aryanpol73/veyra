@@ -82,6 +82,17 @@ def _extract_json(text: str) -> str:
     return text[start:] if start > 0 else text
 
 
+def _wrap_bare_list(text: str, schema: type[BaseModel]) -> str:
+    """Models sometimes return `[...]` when the schema is `{"items": [...]}`: wrap it if that's unambiguous."""
+    if not text.lstrip().startswith("["):
+        return text
+    list_fields = [n for n, f in schema.model_fields.items() if getattr(f.annotation, "__origin__", None) is list]
+    required = [n for n, f in schema.model_fields.items() if f.is_required()]
+    if len(list_fields) == 1 and set(required) <= set(list_fields):
+        return json.dumps({list_fields[0]: json.loads(text)})
+    return text
+
+
 def complete_json(
     *,
     role: Role,
@@ -137,7 +148,7 @@ def complete_json(
                     budget.used += (resp.usage.prompt_tokens or 0) + (resp.usage.completion_tokens or 0)
                     budget.calls += 1
             raw = unmask(resp.choices[0].message.content or "")
-            parsed = schema.model_validate_json(_extract_json(raw))
+            parsed = schema.model_validate_json(_wrap_bare_list(_extract_json(raw), schema))
             log_agent_run(kind, started, {"user": user[:4000]}, parsed.model_dump(mode="json"),
                           tokens_in=tokens_in, tokens_out=tokens_out, model=model_for(role))
             return parsed
