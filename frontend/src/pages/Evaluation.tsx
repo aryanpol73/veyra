@@ -47,7 +47,7 @@ function CalibrationChart({ bins }: { bins: CalibrationBin[] }) {
               if (!p || p.bin === undefined) return null;
               const b = bins.find((x) => x.bin === p.bin)!;
               return (
-                <div className="rounded-[3px] border border-line-strong bg-surface p-2.5 font-mono text-xs text-ink-2 shadow-lg">
+                <div className="rounded-[6px] border border-line-strong bg-surface p-2.5 font-mono text-xs text-ink-2 shadow-lg">
                   <div className="font-semibold text-ink">{b.bin} bin (n={b.n})</div>
                   <div>mean confidence {fmt(b.mean_confidence)}</div>
                   <div>observed hit rate {fmt(b.observed_rate)} ({b.hits}/{b.n})</div>
@@ -110,7 +110,7 @@ function RunPanel({ mode, onDone }: { mode: string; onDone: () => void }) {
     >
       <p className="text-sm text-muted">Replays the same pipeline month by month over the frozen Wayback dataset in its own database. On the Groq free tier (8k tokens/min) a run takes 30-60 minutes.</p>
       {err && <div className="mt-3"><ErrorBox error={err} /></div>}
-      {st?.log_tail && <pre className="scroll-thin mt-3 max-h-44 overflow-auto whitespace-pre-wrap rounded-[3px] border border-line bg-sunken p-2.5 font-mono text-xs leading-relaxed text-ink-2">{st.log_tail}</pre>}
+      {st?.log_tail && <pre className="scroll-thin mt-3 max-h-44 overflow-auto whitespace-pre-wrap rounded-[6px] border border-line bg-sunken p-2.5 font-mono text-xs leading-relaxed text-ink-2">{st.log_tail}</pre>}
     </Card>
   );
 }
@@ -128,7 +128,7 @@ export default function Evaluation() {
     <div className="space-y-5">
       <PageHeader index="06" title="Evaluation" description="Backtest metrics and calibration for the hypothesis scores, replayed over a frozen historical dataset." />
 
-      <div role="note" style={toneStyle("warn")} className="hatch-soft relative flex gap-3 rounded-[4px] border p-4 text-sm leading-relaxed">
+      <div role="note" style={toneStyle("warn")} className="hatch-soft relative flex gap-3 rounded-[12px] border p-4 text-sm leading-relaxed">
         <IconAlert size={18} className="mt-0.5 shrink-0" />
         <div className="text-ink-2">
           <b className="font-mono text-xs font-semibold uppercase tracking-[0.1em]" style={{ color: "var(--warn)" }}>Pilot study.</b>{" "}
@@ -140,10 +140,10 @@ export default function Evaluation() {
       </div>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <div className="inline-flex rounded-[4px] border border-line bg-surface p-0.5" role="tablist" aria-label="Contamination mode">
+        <div className="inline-flex rounded-[12px] border border-line bg-surface p-0.5" role="tablist" aria-label="Contamination mode">
           {MODES.map((x) => (
             <button key={x.id} role="tab" aria-selected={mode === x.id} onClick={() => setMode(x.id)} title={x.hint}
-              className={`h-9 cursor-pointer rounded-[3px] px-3.5 text-sm font-medium transition-colors ${mode === x.id ? "bg-ink text-bg" : "text-ink-2 hover:bg-surface-2 hover:text-ink"}`}>
+              className={`h-9 cursor-pointer rounded-[6px] px-3.5 text-sm font-medium transition-colors ${mode === x.id ? "bg-ink text-bg" : "text-ink-2 hover:bg-surface-2 hover:text-ink"}`}>
               {x.label}
             </button>
           ))}

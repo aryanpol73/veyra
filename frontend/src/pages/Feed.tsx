@@ -13,7 +13,7 @@ function SignalCard({ s, related, i }: { s: Signal; related: number; i: number }
   const [open, setOpen] = useState(false);
   const hasDetail = (s.raw.added?.length || s.raw.removed?.length || s.raw.postings?.length || s.raw.paths?.length || s.raw.caveat) > 0;
   return (
-    <article className="anim-rise grid min-w-0 gap-x-5 gap-y-2 rounded-[4px] border border-line bg-surface p-4 sm:grid-cols-[8rem_minmax(0,1fr)]" style={{ "--i": Math.min(i, 10) } as CSSProperties}>
+    <article className="anim-rise grid min-w-0 gap-x-5 gap-y-2 rounded-[12px] border border-line bg-surface p-4 sm:grid-cols-[8rem_minmax(0,1fr)]" style={{ "--i": Math.min(i, 10) } as CSSProperties}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 sm:flex-col sm:items-start sm:gap-1.5 sm:border-r sm:border-line sm:pr-4">
         <PriorityTag priority={s.priority} />
         <span className="tnum font-mono text-[11px] leading-tight text-ink-2" title={`detected ${new Date(s.detected_at).toLocaleString()}`}>
@@ -34,7 +34,7 @@ function SignalCard({ s, related, i }: { s: Signal; related: number; i: number }
         </div>
         <p className="mt-2 text-sm leading-snug text-ink">{s.summary}</p>
         {(s.old_value || s.new_value) && s.type !== "news_mention" && (
-          <p className="mt-2 rounded-[3px] bg-sunken px-2.5 py-1.5 font-mono text-xs leading-relaxed text-muted [overflow-wrap:anywhere]">
+          <p className="mt-2 rounded-[6px] bg-sunken px-2.5 py-1.5 font-mono text-xs leading-relaxed text-muted [overflow-wrap:anywhere]">
             {s.old_value && <><span className="line-through">{s.old_value.slice(0, 160)}</span> <span aria-hidden="true">→</span><span className="sr-only">changed to</span> </>}
             <span className="text-ink">{s.new_value?.slice(0, 200) ?? "—"}</span>
           </p>
@@ -50,7 +50,7 @@ function SignalCard({ s, related, i }: { s: Signal; related: number; i: number }
           )}
         </div>
         {open && (
-          <div className="anim-route mt-2.5 space-y-0.5 rounded-[3px] border border-line bg-sunken p-2.5 font-mono text-xs leading-relaxed [overflow-wrap:anywhere]">
+          <div className="anim-route mt-2.5 space-y-0.5 rounded-[6px] border border-line bg-sunken p-2.5 font-mono text-xs leading-relaxed [overflow-wrap:anywhere]">
             {s.raw.caveat && <div style={{ color: "var(--warn)" }}>caveat: {s.raw.caveat}</div>}
             {s.raw.removed?.slice(0, 12).map((l: string, i: number) => <div key={"r" + i} style={{ color: "var(--bad)" }}>- {l}</div>)}
             {s.raw.added?.slice(0, 12).map((l: string, i: number) => <div key={"a" + i} style={{ color: "var(--ok)" }}>+ {l}</div>)}
@@ -166,7 +166,7 @@ export default function Feed() {
     <div className="space-y-5">
       <PageHeader index="03" title="Intelligence Feed" description="Every detected change with its evidence link and provenance. Replay, Synthetic and Early Signal items are marked." />
       <CyclePanel onDone={reload} />
-      <div className="grid grid-cols-1 gap-3 rounded-[4px] border border-line bg-surface p-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 rounded-[12px] border border-line bg-surface p-3 sm:grid-cols-3">
         <Field label="Competitor">
           <select className={inputCls} value={comp} onChange={(e) => setComp(e.target.value)}>
             <option value="">All competitors</option>
@@ -193,7 +193,7 @@ export default function Feed() {
       )}
       {!signals && !err && (
         <div className="space-y-2">{[0, 1, 2].map((i) => (
-          <div key={i} className="rounded-[4px] border border-line bg-surface p-4"><Skeleton className="h-3 w-1/3" /><Skeleton className="mt-3 h-4 w-full" /><Skeleton className="mt-2 h-3 w-1/2" /></div>
+          <div key={i} className="rounded-[12px] border border-line bg-surface p-4"><Skeleton className="h-3 w-1/3" /><Skeleton className="mt-3 h-4 w-full" /><Skeleton className="mt-2 h-3 w-1/2" /></div>
         ))}</div>
       )}
       <div className="space-y-2">

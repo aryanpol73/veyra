@@ -29,14 +29,23 @@ export const IconTrash = (p: P) => (<svg {...base({ size: 14, ...p })}><path d="
 export const IconSearch = (p: P) => (<svg {...base({ size: 14, ...p })}><circle cx="11" cy="11" r="6.5" /><path d="m20 20-4.2-4.2" /></svg>);
 export const IconTool = (p: P) => (<svg {...base({ size: 14, ...p })}><path d="M14.5 6.5a4 4 0 0 0 5 5L12 19a2.1 2.1 0 0 1-3-3z" /><path d="M14.5 6.5 17 4l3 3-2.5 2.5" /></svg>);
 
-/** Veyra mark: a gauge arc with a needle — the confidence motif in miniature. */
+/** Veyra mark: a radar scope with a rotating sweep — the "signal" motif in miniature. */
 export function VeyraMark({ size = 22 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <rect x="0.75" y="0.75" width="22.5" height="22.5" rx="3" fill="var(--ink)" />
-      <path d="M5.5 15.5a6.5 6.5 0 0 1 13 0" fill="none" stroke="var(--bg)" strokeWidth="1.6" strokeLinecap="round" strokeDasharray="1.2 2.2" />
-      <path d="M12 15.5 16 9.5" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" />
-      <circle cx="12" cy="15.5" r="1.6" fill="var(--accent)" />
+      <defs>
+        <linearGradient id="veyra-sweep" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="var(--accent)" stopOpacity="0" />
+          <stop offset="1" stopColor="var(--accent)" stopOpacity="0.75" />
+        </linearGradient>
+      </defs>
+      <circle cx="12" cy="12" r="11" fill="var(--sunken)" stroke="var(--accent)" strokeWidth="1.3" />
+      <circle cx="12" cy="12" r="6.5" fill="none" stroke="var(--accent)" strokeOpacity="0.35" strokeWidth="0.8" />
+      <g className="anim-sweep" style={{ transformOrigin: "12px 12px" }}>
+        <path d="M12 12 L12 1.5 A10.5 10.5 0 0 1 21.1 6.75 Z" fill="url(#veyra-sweep)" />
+      </g>
+      <circle cx="16.5" cy="8" r="1.4" fill="var(--amber)" />
+      <circle cx="12" cy="12" r="1.3" fill="var(--accent)" />
     </svg>
   );
 }

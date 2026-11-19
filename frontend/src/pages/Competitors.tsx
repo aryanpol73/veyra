@@ -105,7 +105,7 @@ export default function Competitors() {
                 </div>
                 <p id="comp-domain-hint" className="text-xs text-muted">Type a domain and press Discover: Veyra visits the site politely and fills in the fields below. Review them before saving.</p>
                 {notes.length > 0 && (
-                  <ul className="mt-1 space-y-0.5 rounded-[3px] border border-line bg-surface-2 p-2.5 font-mono text-xs text-ink-2" aria-live="polite">
+                  <ul className="mt-1 space-y-0.5 rounded-[6px] border border-line bg-surface-2 p-2.5 font-mono text-xs text-ink-2" aria-live="polite">
                     {notes.map((n) => <li key={n} className="before:mr-1.5 before:text-muted before:content-['›']">{n}</li>)}
                   </ul>
                 )}
@@ -130,16 +130,16 @@ export default function Competitors() {
         </div>
       )}
       {list && list.length === 0 && <Empty>No competitors yet. Run <code className="font-mono text-ink-2">python -m app.db.seed</code> or add one.</Empty>}
-      {!list && !err && <div className="grid gap-3">{[0, 1].map((i) => <div key={i} className="rounded-[4px] border border-line bg-surface p-4"><Skeleton className="h-4 w-40" /><Skeleton className="mt-4 h-3 w-full" /><Skeleton className="mt-2 h-3 w-5/6" /></div>)}</div>}
+      {!list && !err && <div className="grid gap-3">{[0, 1].map((i) => <div key={i} className="rounded-[12px] border border-line bg-surface p-4"><Skeleton className="h-4 w-40" /><Skeleton className="mt-4 h-3 w-full" /><Skeleton className="mt-2 h-3 w-5/6" /></div>)}</div>}
       <div className="grid gap-4">
         {list?.map((c, i) => (
           <div key={c.id} className="anim-rise" style={{ "--i": i } as CSSProperties}>
             <Card
               title={<span className="flex items-center gap-2.5 normal-case tracking-normal">
-                <span aria-hidden="true" className="flex h-7 w-7 items-center justify-center rounded-[3px] bg-ink font-mono text-sm font-semibold text-bg">{c.name.slice(0, 1).toUpperCase()}</span>
+                <span aria-hidden="true" className="flex h-7 w-7 items-center justify-center rounded-[6px] bg-ink font-mono text-sm font-semibold text-bg">{c.name.slice(0, 1).toUpperCase()}</span>
                 <span className="font-sans text-base font-semibold text-ink">{c.name}</span>
               </span>}
-              right={<button onClick={() => remove(c)} className="inline-flex h-8 cursor-pointer items-center gap-1 rounded-[3px] px-2 font-mono text-xs font-medium hover:bg-[var(--bad-bg)]" style={{ color: "var(--bad)" }}>
+              right={<button onClick={() => remove(c)} className="inline-flex h-8 cursor-pointer items-center gap-1 rounded-[6px] px-2 font-mono text-xs font-medium hover:bg-[var(--bad-bg)]" style={{ color: "var(--bad)" }}>
                 <IconTrash />Delete<span className="sr-only"> {c.name}</span>
               </button>}
               flush

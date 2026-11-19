@@ -51,7 +51,7 @@ export default function Reports() {
                 return (
                   <li key={r.date} className="shrink-0">
                     <button onClick={() => setPicked(r.date)} aria-current={active ? "true" : undefined}
-                      className={`relative flex h-10 w-full cursor-pointer items-center whitespace-nowrap rounded-[3px] px-3 text-left font-mono text-sm transition-colors lg:-ml-px lg:rounded-none lg:border-l-2 lg:pl-4 ${
+                      className={`relative flex h-10 w-full cursor-pointer items-center whitespace-nowrap rounded-[6px] px-3 text-left font-mono text-sm transition-colors lg:-ml-px lg:rounded-none lg:border-l-2 lg:pl-4 ${
                         active ? "bg-surface font-semibold text-ink lg:border-accent lg:bg-transparent" : "text-ink-2 hover:bg-surface-2 hover:text-ink lg:border-transparent lg:hover:bg-transparent"}`}>
                       <span className="tnum">{r.date}</span>
                     </button>
@@ -60,7 +60,7 @@ export default function Reports() {
               })}
             </ul>
           </nav>
-          <article className="min-w-0 rounded-[4px] border border-line bg-surface">
+          <article className="min-w-0 rounded-[12px] border border-line bg-surface">
             <header className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-5 py-3 md:px-8">
               <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted">Brief · {day && longDate(day)}</span>
               <span className="font-mono text-[11px] text-muted">Markdown</span>

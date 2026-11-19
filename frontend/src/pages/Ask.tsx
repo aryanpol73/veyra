@@ -18,7 +18,7 @@ const SUGGESTIONS = [
 function MiniTimeline({ t }: { t: Timeline }) {
   const data = t.points.map((p, i) => ({ i, c: p.confidence, reason: p.reason, ts: p.ts }));
   return (
-    <div className="min-w-0 rounded-[3px] border border-line bg-surface-2 p-3">
+    <div className="min-w-0 rounded-[6px] border border-line bg-surface-2 p-3">
       <div className="flex items-center gap-2">
         <Badge>{t.competitor}</Badge>
         <Link className="min-w-0 flex-1 truncate text-xs font-medium text-ink hover:underline" to={`/hypotheses?id=${t.hypothesis_id}`} title={t.statement}>
@@ -35,7 +35,7 @@ function MiniTimeline({ t }: { t: Timeline }) {
               <Tooltip cursor={{ stroke: "var(--chart-ink)", strokeDasharray: "2 2" }} content={({ active, payload }) => {
                 const p = active && payload?.[0]?.payload;
                 return p ? (
-                  <div className="max-w-xs rounded-[3px] border border-line-strong bg-surface p-2 text-xs shadow-lg">
+                  <div className="max-w-xs rounded-[6px] border border-line-strong bg-surface p-2 text-xs shadow-lg">
                     <b className="tnum font-mono text-ink">{p.c.toFixed(2)}</b> <span className="font-mono text-muted">· {new Date(p.ts).toLocaleDateString()}</span><div className="mt-0.5 text-ink-2">{p.reason}</div>
                   </div>) : null;
               }} />
@@ -62,12 +62,12 @@ function Reply({ r }: { r: ChatReply }) {
           <div className="flex flex-wrap gap-1.5">
             {r.citations.map((c) => c.kind === "hypothesis" ? (
               <Link key={`h${c.id}`} to={c.url} title={c.label}
-                className="inline-flex h-7 items-center gap-1.5 rounded-[3px] border border-line-strong bg-surface px-2 font-mono text-xs text-ink-2 transition-colors hover:border-accent hover:text-ink">
+                className="inline-flex h-7 items-center gap-1.5 rounded-[6px] border border-line-strong bg-surface px-2 font-mono text-xs text-ink-2 transition-colors hover:border-accent hover:text-ink">
                 <span className="font-semibold text-accent">H{c.id}</span>{c.status}<IconArrowRight size={11} />
               </Link>
             ) : (
               <a key={`s${c.id}`} href={c.url} target="_blank" rel="noreferrer" title={c.label}
-                className="inline-flex h-7 max-w-xs items-center gap-1.5 rounded-[3px] border border-line-strong bg-surface px-2 font-mono text-xs text-ink-2 transition-colors hover:border-accent hover:text-ink">
+                className="inline-flex h-7 max-w-xs items-center gap-1.5 rounded-[6px] border border-line-strong bg-surface px-2 font-mono text-xs text-ink-2 transition-colors hover:border-accent hover:text-ink">
                 <span className="font-semibold text-ink">S{c.id}</span><span className="min-w-0 truncate">{c.competitor} · {c.label}</span><IconExternal className="shrink-0" />
                 <span className="sr-only">(opens in a new tab)</span>
               </a>
@@ -87,7 +87,7 @@ function Reply({ r }: { r: ChatReply }) {
       {showTools && (
         <ul className="anim-route space-y-1.5 border-l border-line pl-3 font-mono text-xs">
           {r.tool_calls.map((c, i) => (
-            <li key={i} className="rounded-[3px] bg-sunken p-2 [overflow-wrap:anywhere]">
+            <li key={i} className="rounded-[6px] bg-sunken p-2 [overflow-wrap:anywhere]">
               <span className="inline-flex items-center gap-1 font-medium text-accent"><IconTool size={12} />{c.tool}</span><span className="text-ink-2">({JSON.stringify(c.args)})</span>
               <div className="mt-1 whitespace-pre-line text-muted">{c.result}</div>
             </li>
@@ -138,7 +138,7 @@ export default function Ask() {
             <div className="grid gap-2 sm:grid-cols-2">
               {SUGGESTIONS.map((s, i) => (
                 <button key={s} onClick={() => ask(s)} style={{ "--i": i } as CSSProperties}
-                  className="anim-rise group flex cursor-pointer items-start justify-between gap-3 rounded-[4px] border border-line bg-surface p-3.5 text-left text-sm text-ink transition-colors hover:border-line-strong hover:bg-surface-2">
+                  className="anim-rise group flex cursor-pointer items-start justify-between gap-3 rounded-[12px] border border-line bg-surface p-3.5 text-left text-sm text-ink transition-colors hover:border-line-strong hover:bg-surface-2">
                   <span>{s}</span><span className="mt-0.5 text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-accent"><IconArrowRight /></span>
                 </button>
               ))}
@@ -146,17 +146,17 @@ export default function Ask() {
           </div>
         )}
         {turns.map((t, i) => t.role === "user" ? (
-          <div key={i} className="anim-rise ml-auto w-fit max-w-[85%] rounded-[4px] bg-ink px-3.5 py-2.5 text-sm leading-relaxed text-bg [overflow-wrap:anywhere]">{t.content}</div>
+          <div key={i} className="anim-rise ml-auto w-fit max-w-[85%] rounded-[12px] bg-ink px-3.5 py-2.5 text-sm leading-relaxed text-bg [overflow-wrap:anywhere]">{t.content}</div>
         ) : (
           <div key={i} className="anim-rise flex gap-3">
             <span className="mt-0.5 hidden shrink-0 sm:block"><VeyraMark size={24} /></span>
-            <div className="min-w-0 flex-1 rounded-[4px] border border-line bg-surface p-4">{t.reply && <Reply r={t.reply} />}</div>
+            <div className="min-w-0 flex-1 rounded-[12px] border border-line bg-surface p-4">{t.reply && <Reply r={t.reply} />}</div>
           </div>
         ))}
         {busy && (
           <div className="flex gap-3" role="status">
             <span className="mt-0.5 hidden shrink-0 sm:block"><VeyraMark size={24} /></span>
-            <div className="min-w-0 flex-1 rounded-[4px] border border-line bg-surface p-4">
+            <div className="min-w-0 flex-1 rounded-[12px] border border-line bg-surface p-4">
               <div className="flex items-center gap-2 font-mono text-xs text-ink-2"><span className="anim-pulse inline-block h-2 w-2 rounded-full bg-accent" aria-hidden="true" />Looking through the database…</div>
               <Skeleton className="mt-3 h-3 w-full" /><Skeleton className="mt-2 h-3 w-4/5" />
             </div>

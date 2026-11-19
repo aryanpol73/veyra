@@ -10,7 +10,7 @@ export function PageHeader({ index, title, description, actions }: { index: stri
         <div className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-accent">
           <span className="tnum">{index}</span> <span aria-hidden="true">/</span> {title}
         </div>
-        <h1 className="mt-1.5 text-[26px] font-semibold leading-tight tracking-[-0.02em] text-ink md:text-[30px]">{title}</h1>
+        <h1 className="mt-1.5 font-display text-[28px] font-bold leading-tight tracking-[-0.025em] text-ink md:text-[36px]">{title}</h1>
         {description && <div className="mt-1.5 max-w-3xl text-sm leading-relaxed text-muted">{description}</div>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
@@ -22,10 +22,10 @@ export function Card({ title, children, right, flush, className = "", id }: {
   title?: ReactNode; children: ReactNode; right?: ReactNode; flush?: boolean; className?: string; id?: string;
 }) {
   return (
-    <section id={id} className={`min-w-0 rounded-[4px] border border-line bg-surface ${className}`}>
+    <section id={id} className={`min-w-0 rounded-[12px] border border-line bg-surface/90 shadow-[0_1px_0_color-mix(in_srgb,var(--accent)_6%,transparent)_inset] backdrop-blur-sm ${className}`}>
       {(title || right) && (
         <div className="flex min-h-11 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-line px-4 py-2">
-          {title && <h2 className="font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-ink-2">{title}</h2>}
+          {title && <h2 className="font-display text-[15px] font-semibold tracking-[-0.01em] text-ink">{title}</h2>}
           {right}
         </div>
       )}
@@ -57,7 +57,7 @@ export function Badge({ tone = "muted", children, title, className = "" }: { ton
     <span
       title={title}
       style={toneStyle(tone)}
-      className={`inline-flex max-w-full items-center gap-1 rounded-[3px] border px-1.5 py-px font-mono text-[11px] font-medium leading-4 [overflow-wrap:anywhere] ${provenance ? "border-dashed" : ""} ${className}`}
+      className={`inline-flex max-w-full items-center gap-1 rounded-[6px] border px-1.5 py-px font-mono text-[11px] font-medium leading-4 [overflow-wrap:anywhere] ${provenance ? "border-dashed" : ""} ${className}`}
     >
       {children}
     </span>
@@ -70,7 +70,7 @@ export function ProvenanceTag({ kind }: { kind: "replay" | "synthetic" | "early"
   const v = kind === "early" ? "warn" : "synth";
   return (
     <span
-      className="hatch-soft inline-flex items-center gap-1 rounded-[3px] border border-dashed px-1.5 py-px font-mono text-[11px] font-semibold uppercase leading-4 tracking-[0.06em]"
+      className="hatch-soft inline-flex items-center gap-1 rounded-[6px] border border-dashed px-1.5 py-px font-mono text-[11px] font-semibold uppercase leading-4 tracking-[0.06em]"
       style={{ color: `var(--${v})`, borderColor: `var(--${v}-line)`, backgroundColor: `var(--${v}-bg)` }}
     >
       <svg width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><path d={kind === "early" ? "M4 0 8 8H0z" : "M0 4h8M4 0v8"} fill={kind === "early" ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.5" /></svg>
@@ -103,7 +103,7 @@ function Pie({ fill }: { fill: number }) {
 export function StatusTag({ status }: { status: string }) {
   const m = STATUS_META[status] ?? { tone: "muted" as Tone, fill: 0 };
   return (
-    <span style={toneStyle(m.tone)} className="inline-flex items-center gap-1 rounded-[3px] border px-1.5 py-px font-mono text-[11px] font-semibold uppercase leading-4 tracking-[0.06em]">
+    <span style={toneStyle(m.tone)} className="inline-flex items-center gap-1 rounded-[6px] border px-1.5 py-px font-mono text-[11px] font-semibold uppercase leading-4 tracking-[0.06em]">
       <Pie fill={m.fill} />{status}
     </span>
   );
@@ -117,7 +117,7 @@ const PRIORITY_META: Record<string, { tone: Tone; bars: number }> = {
 export function PriorityTag({ priority }: { priority: string }) {
   const m = PRIORITY_META[priority] ?? { tone: "muted" as Tone, bars: 1 };
   return (
-    <span style={toneStyle(m.tone)} className="inline-flex items-center gap-1 rounded-[3px] border px-1.5 py-px font-mono text-[11px] font-semibold uppercase leading-4 tracking-[0.06em]">
+    <span style={toneStyle(m.tone)} className="inline-flex items-center gap-1 rounded-[6px] border px-1.5 py-px font-mono text-[11px] font-semibold uppercase leading-4 tracking-[0.06em]">
       <svg width="11" height="10" viewBox="0 0 11 10" aria-hidden="true">
         {[0, 1, 2, 3].map((i) => (
           <rect key={i} x={i * 3} y={7 - i * 2} width="2" height={3 + i * 2} fill="currentColor" opacity={i < m.bars ? 1 : 0.25} />
@@ -166,6 +166,34 @@ export function ConfidenceGauge({ value, size = "sm", label, prior }: { value: n
   );
 }
 
+/** Confidence ring (Deep Signal motif): conic sweep to the score, ticks at the status thresholds,
+    number in the centre. Ring colour follows status; the number and status tag carry the meaning. */
+const RING_COLOR: Record<string, string> = {
+  emerging: "var(--neutral)", plausible: "var(--accent)", likely: "var(--amber)", confirmed: "var(--ok)", refuted: "var(--bad)", stale: "var(--neutral)",
+};
+
+export function ConfidenceRing({ value, status, size = 52 }: { value: number; status?: string; size?: number }) {
+  const v = Math.max(0, Math.min(1, value));
+  const color = (status && RING_COLOR[status]) || "var(--accent)";
+  const thick = Math.max(4, Math.round(size / 12));
+  const mask = `radial-gradient(farthest-side, transparent calc(100% - ${thick}px), #000 calc(100% - ${thick}px + 0.5px))`;
+  return (
+    <div role="img" aria-label={`confidence ${v.toFixed(2)} of 1, uncalibrated heuristic`} className="relative shrink-0" style={{ width: size, height: size }}>
+      <div aria-hidden="true" className="anim-ring absolute inset-0 rounded-full"
+        style={{ background: `conic-gradient(${color} ${v * 360}deg, color-mix(in srgb, var(--line-strong) 75%, transparent) 0)`, WebkitMask: mask, mask }} />
+      {THRESHOLDS.map((t) => (
+        <span key={t} aria-hidden="true" className="absolute inset-0" style={{ transform: `rotate(${t * 360}deg)` }}>
+          <span className="absolute left-1/2 w-px -translate-x-1/2 bg-[var(--muted)]" style={{ top: -2, height: thick + 4 }} />
+        </span>
+      ))}
+      <div aria-hidden="true" className="tnum absolute inset-0 flex items-center justify-center font-mono font-medium text-ink"
+        style={{ fontSize: Math.max(11, Math.round(size / 4)) }}>
+        {v.toFixed(2)}
+      </div>
+    </div>
+  );
+}
+
 /* ───────────────────────────── evidence ledger marks ───────────────────────────── */
 
 export function StanceMark({ stance }: { stance: "supports" | "contradicts" | "neutral" | string }) {
@@ -174,7 +202,7 @@ export function StanceMark({ stance }: { stance: "supports" | "contradicts" | "n
     <span
       aria-label={stance}
       title={stance}
-      className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-[3px] border font-mono text-[13px] font-semibold leading-none ${s.v === "neutral" ? "border-dashed" : ""}`}
+      className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] border font-mono text-[13px] font-semibold leading-none ${s.v === "neutral" ? "border-dashed" : ""}`}
       style={s.solid ? { background: `var(--${s.v})`, borderColor: `var(--${s.v})`, color: "var(--surface)" } : { color: `var(--${s.v})`, borderColor: `var(--${s.v}-line)`, background: `var(--${s.v}-bg)` }}
     >
       {s.g}
@@ -210,17 +238,17 @@ export function ExtLink({ href, children, className = "" }: { href: string; chil
 
 export function Stat({ label, value, sub, index }: { label: string; value: ReactNode; sub?: ReactNode; index?: number }) {
   return (
-    <div className="anim-rise relative min-w-0 rounded-[4px] border border-line bg-surface p-4" style={{ "--i": index ?? 0 } as CSSProperties}>
+    <div className="anim-rise relative min-w-0 overflow-hidden rounded-[12px] border border-line bg-surface/90 p-4 backdrop-blur-sm" style={{ "--i": index ?? 0 } as CSSProperties}>
       <div className="font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-muted">{label}</div>
-      <div className="tnum mt-2 text-[28px] font-semibold leading-none tracking-[-0.02em] text-ink">{value}</div>
-      {sub && <div className="tnum mt-2 font-mono text-xs text-muted">{sub}</div>}
+      <div className="tnum mt-2.5 font-display text-[32px] font-semibold leading-none tracking-[-0.02em] text-ink">{value}</div>
+      {sub && <div className="tnum mt-2 font-mono text-xs text-accent">{sub}</div>}
     </div>
   );
 }
 
 export function Empty({ children }: { children: ReactNode }) {
   return (
-    <div className="hatch-soft flex flex-col items-center gap-3 rounded-[4px] border border-dashed border-line-strong px-6 py-10 text-center text-sm text-muted">
+    <div className="hatch-soft flex flex-col items-center gap-3 rounded-[12px] border border-dashed border-line-strong px-6 py-10 text-center text-sm text-muted">
       <span className="opacity-70"><VeyraMark size={20} /></span>
       <div className="max-w-md leading-relaxed">{children}</div>
     </div>
@@ -229,7 +257,7 @@ export function Empty({ children }: { children: ReactNode }) {
 
 export function ErrorBox({ error }: { error: string }) {
   return (
-    <div role="alert" style={toneStyle("bad")} className="flex items-start gap-2 rounded-[4px] border p-3 text-sm [overflow-wrap:anywhere]">
+    <div role="alert" style={toneStyle("bad")} className="flex items-start gap-2 rounded-[12px] border p-3 text-sm [overflow-wrap:anywhere]">
       <IconAlert className="mt-0.5 shrink-0" />
       <span>{error}</span>
     </div>
@@ -261,11 +289,11 @@ export function useLoad<T>(fn: () => Promise<T>, deps: unknown[] = []): [T | nul
 /* ───────────────────────────── controls ───────────────────────────── */
 
 export const inputCls =
-  "h-10 w-full min-w-0 rounded-[3px] border border-line-strong bg-surface px-2.5 text-base text-ink placeholder:text-muted transition-colors hover:border-muted focus:border-accent sm:h-9 sm:text-sm";
+  "h-10 w-full min-w-0 rounded-[6px] border border-line-strong bg-surface px-2.5 text-base text-ink placeholder:text-muted transition-colors hover:border-muted focus:border-accent sm:h-9 sm:text-sm";
 export const btnCls =
-  "inline-flex h-10 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-[3px] bg-accent px-3.5 text-sm font-medium text-on-accent transition-[background-color,transform] duration-150 hover:bg-accent-hover active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 sm:h-9";
+  "inline-flex h-10 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-[8px] bg-accent px-4 text-sm font-semibold text-on-accent glow-btn transition-[background-color,transform,box-shadow] duration-150 hover:bg-accent-hover active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 sm:h-9";
 export const btnSecondaryCls =
-  "inline-flex h-10 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-[3px] border border-line-strong bg-surface px-3 text-sm font-medium text-ink transition-[background-color,border-color,transform] duration-150 hover:border-muted hover:bg-surface-2 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 sm:h-9";
+  "inline-flex h-10 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-[6px] border border-line-strong bg-surface px-3 text-sm font-medium text-ink transition-[background-color,border-color,transform] duration-150 hover:border-muted hover:bg-surface-2 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 sm:h-9";
 export const btnSmCls =
-  "inline-flex h-8 cursor-pointer items-center justify-center gap-1 whitespace-nowrap rounded-[3px] border border-line-strong bg-surface px-2.5 font-mono text-xs font-medium text-ink-2 transition-colors hover:border-muted hover:bg-surface-2 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex h-8 cursor-pointer items-center justify-center gap-1 whitespace-nowrap rounded-[6px] border border-line-strong bg-surface px-2.5 font-mono text-xs font-medium text-ink-2 transition-colors hover:border-muted hover:bg-surface-2 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50";
 export const linkCls = "text-ink underline decoration-line-strong underline-offset-[3px] transition-colors hover:decoration-accent";

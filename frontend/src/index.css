@@ -2,38 +2,43 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* ───────────────────────── Veyra "Instrument" tokens ─────────────────────────
-   Light = warm paper, Dark = graphite. One accent (signal amber), tuned per theme
-   for >= 4.5:1 text contrast on its surface. Semantic tones carry text + glyph,
-   never colour alone. */
+/* ───────────────────────── Veyra "Deep Signal" tokens ─────────────────────────
+   Dark = deep navy radar, Light = pale signal-blue paper. Accent: signal cyan (teal in
+   light for AA text contrast). Amber marks "likely"/high priority. Semantic tones carry
+   text + glyph, never colour alone. */
 :root {
   color-scheme: light;
-  --bg: #f3f1ec;
+  --bg: #eef3f9;
+  --bg-deep: #e3ebf5;
   --surface: #ffffff;
-  --surface-2: #f8f7f3;
-  --sunken: #eeebe5;
-  --line: #e2ded6;
-  --line-strong: #c9c3b8;
-  --ink: #15171a;
-  --ink-2: #3b4046;
-  --muted: #5f646b;
-  --accent: #b93d0a;
-  --accent-hover: #9a3208;
+  --surface-2: #f5f8fc;
+  --sunken: #e6edf6;
+  --line: #d6e0ec;
+  --line-strong: #b9c8da;
+  --ink: #0b1a33;
+  --ink-2: #2e4260;
+  --muted: #536781;
+  --accent: #087580;
+  --accent-hover: #065e67;
   --on-accent: #ffffff;
-  --accent-soft: #fbe9df;
-  --focus: #b93d0a;
+  --accent-soft: #e0f3f4;
+  --focus: #087580;
+  --glow: rgba(8, 117, 128, 0.18);
+  --dot: rgba(8, 117, 128, 0.13);
+  --radar: rgba(8, 117, 128, 0.14);
 
-  --ok: #166534;   --ok-bg: #e6f3ea;   --ok-line: #9fd0ae;
-  --warn: #855400; --warn-bg: #fbf0d6; --warn-line: #e3c57a;
-  --bad: #b42318;  --bad-bg: #fcebe9;  --bad-line: #eeaaa3;
-  --info: #1d4ed8; --info-bg: #e7eefc; --info-line: #a9c0f2;
-  --synth: #86198f; --synth-bg: #f7e8f9; --synth-line: #d9a3df;
-  --neutral: #3b4046; --neutral-bg: #eeebe5; --neutral-line: #d4cfc5;
+  --ok: #11673f;   --ok-bg: #e3f4ec;   --ok-line: #a6d9bf;
+  --warn: #8a5300; --warn-bg: #fdf1dc; --warn-line: #e8c88a;
+  --bad: #b4232d;  --bad-bg: #fcebec;  --bad-line: #f0aeb3;
+  --info: #1f4fb8; --info-bg: #e6eefc; --info-line: #afc4ef;
+  --synth: #8a1c8f; --synth-bg: #f7e8f9; --synth-line: #d9a3df;
+  --neutral: #2e4260; --neutral-bg: #e6edf6; --neutral-line: #c7d3e2;
+  --amber: #b86e00;
 
   /* charts: one hue per series */
-  --series-1: #b93d0a;
-  --chart-grid: #e2ded6;
-  --chart-ink: #5f646b;
+  --series-1: #087580;
+  --chart-grid: #d6e0ec;
+  --chart-ink: #536781;
   --chart-surface: #ffffff;
 
   --hatch: color-mix(in srgb, var(--accent) 28%, transparent);
@@ -42,32 +47,37 @@
 
 .dark {
   color-scheme: dark;
-  --bg: #0b0c0e;
-  --surface: #121417;
-  --surface-2: #171a1e;
-  --sunken: #0e1012;
-  --line: #24282e;
-  --line-strong: #363b43;
-  --ink: #eceef0;
-  --ink-2: #b9bec5;
-  --muted: #8e949c;
-  --accent: #ff8a3d;
-  --accent-hover: #ffa364;
-  --on-accent: #120a04;
-  --accent-soft: #2a1a10;
-  --focus: #ff8a3d;
+  --bg: #06122a;
+  --bg-deep: #040d20;
+  --surface: #0a1d3b;
+  --surface-2: #0d2447;
+  --sunken: #071631;
+  --line: #17345a;
+  --line-strong: #24497a;
+  --ink: #eaf2fb;
+  --ink-2: #b9cce0;
+  --muted: #8aa9c6;
+  --accent: #2de2e6;
+  --accent-hover: #6ff0f2;
+  --on-accent: #04202a;
+  --accent-soft: #0b2f45;
+  --focus: #5eeaf0;
+  --glow: rgba(45, 226, 230, 0.35);
+  --dot: rgba(94, 234, 240, 0.11);
+  --radar: rgba(94, 234, 240, 0.13);
 
-  --ok: #6fe0a3;   --ok-bg: #10241a;   --ok-line: #24553a;
-  --warn: #f3c552; --warn-bg: #261f0c; --warn-line: #5a4716;
-  --bad: #ff8b82;  --bad-bg: #2a1311;  --bad-line: #6a2a25;
-  --info: #84bfff; --info-bg: #0f1d2e; --info-line: #27466b;
-  --synth: #e5a3ff; --synth-bg: #24132b; --synth-line: #5a2d6b;
-  --neutral: #b9bec5; --neutral-bg: #1b1e23; --neutral-line: #363b43;
+  --ok: #5be3a0;   --ok-bg: #0b2a2c;   --ok-line: #1e5a4a;
+  --warn: #ffc970; --warn-bg: #2a2213; --warn-line: #6b5222;
+  --bad: #ff8b8b;  --bad-bg: #2c1424;  --bad-line: #6e2b3b;
+  --info: #7cc4ff; --info-bg: #0c2448; --info-line: #27508a;
+  --synth: #f0abfc; --synth-bg: #251844; --synth-line: #5b3a86;
+  --neutral: #b9cce0; --neutral-bg: #10264a; --neutral-line: #24497a;
+  --amber: #ffb547;
 
-  --series-1: #ff8a3d;
-  --chart-grid: #2a2e35;
-  --chart-ink: #9aa0a8;
-  --chart-surface: #121417;
+  --series-1: #2de2e6;
+  --chart-grid: #17345a;
+  --chart-ink: #8fb3d1;
+  --chart-surface: #0a1d3b;
 }
 
 @theme inline {
@@ -89,6 +99,8 @@
   --color-bad: var(--bad);
   --color-info: var(--info);
   --color-synth: var(--synth);
+  --color-amber: var(--amber);
+  --font-display: "Space Grotesk", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", "Segoe UI Mono", Menlo, Consolas, monospace;
 }
@@ -97,7 +109,12 @@ html {
   -webkit-text-size-adjust: 100%;
 }
 body {
-  background: var(--bg);
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(var(--dot) 1px, transparent 1px),
+    linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
+  background-size: 22px 22px, 100% 100%;
+  background-attachment: fixed;
   color: var(--ink);
   font-family: var(--font-sans);
   font-feature-settings: "tnum" 0;
@@ -106,15 +123,28 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* faint measuring grid behind the canvas — the "instrument" backdrop */
-.canvas-grid {
-  background-image:
-    linear-gradient(to right, color-mix(in srgb, var(--line) 55%, transparent) 1px, transparent 1px),
-    linear-gradient(to bottom, color-mix(in srgb, var(--line) 55%, transparent) 1px, transparent 1px);
-  background-size: 48px 48px;
-  background-position: -1px -1px;
-  mask-image: linear-gradient(to bottom, black 0, transparent 280px);
+/* radar backdrop: concentric rings + rotating sweep, top-right of the canvas */
+.radar-rings {
+  border-radius: 9999px;
+  border: 1px solid var(--radar);
+  box-shadow: inset 0 0 0 70px transparent;
 }
+.radar-rings::before, .radar-rings::after {
+  content: "";
+  position: absolute;
+  border-radius: 9999px;
+  border: 1px solid var(--radar);
+}
+.radar-rings::before { inset: 80px; }
+.radar-rings::after { inset: 170px; }
+.radar-sweep {
+  border-radius: 9999px;
+  background: conic-gradient(from 0deg, color-mix(in srgb, var(--accent) 16%, transparent), transparent 24%);
+}
+.scanline {
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--accent) 5%, transparent), transparent);
+}
+.glow-btn { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent), 0 0 26px var(--glow); }
 
 ::selection {
   background: color-mix(in srgb, var(--accent) 30%, transparent);
@@ -162,6 +192,21 @@ body {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.35; }
 }
+@keyframes v-sweep {
+  to { transform: rotate(360deg); }
+}
+@keyframes v-scanline {
+  from { transform: translateY(-160px); }
+  to   { transform: translateY(100vh); }
+}
+@keyframes v-ping {
+  0%   { transform: scale(0.6); opacity: 0.9; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+@keyframes v-ring {
+  from { opacity: 0; transform: rotate(-90deg) scale(0.85); }
+  to   { opacity: 1; transform: none; }
+}
 @keyframes v-scan {
   from { transform: translateX(-100%); }
   to   { transform: translateX(400%); }
@@ -171,6 +216,10 @@ body {
 .anim-rise { animation: v-rise 360ms var(--ease-out) both; animation-delay: calc(var(--i, 0) * 35ms); }
 .anim-fill { transform-origin: left center; animation: v-fill 700ms var(--ease-out) both; }
 .anim-pulse { animation: v-pulse 1.4s ease-in-out infinite; }
+.anim-sweep { animation: v-sweep 9s linear infinite; }
+.anim-scanline { animation: v-scanline 9s linear infinite; }
+.anim-ping { animation: v-ping 2.2s cubic-bezier(0, 0, 0.2, 1) infinite; }
+.anim-ring { animation: v-ring 900ms var(--ease-out) both; }
 .anim-scan { animation: v-scan 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
 
 @media (prefers-reduced-motion: reduce) {
