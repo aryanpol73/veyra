@@ -1,0 +1,12 @@
+# Caddy terminates HTTPS (automatic Let's Encrypt certificates) and forwards to Veyra.
+# VEYRA_DOMAIN comes from .env, e.g. veyra-aryan.duckdns.org
+{$VEYRA_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy veyra:8000 {
+		header_up X-Forwarded-Proto {scheme}
+	}
+	log {
+		output stdout
+		format console
+	}
+}

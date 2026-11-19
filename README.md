@@ -1,343 +1,480 @@
-# Veyra: Hypothesis-Driven Competitive Intelligence Agent
+<div align="center">
 
-Veyra is an autonomous, hypothesis-driven competitive-intelligence system. It investigates competing explanations and
-measures its own prediction accuracy.
+<img src="frontend/public/pwa-192.png" width="88" alt="Veyra radar logo" />
 
-Most monitoring tools report "what changed". Veyra keeps **persistent, evidence-backed hypotheses** about each
-competitor's strategy, such as "Vercel is moving toward usage-based billing". Around each one it:
-- plans its own **follow-up investigations**,
-- has a **skeptic** argue the mundane explanation and actually test it,
-- updates an **independence-aware confidence score**: three articles about one press release count once,
-- measures its own accuracy with a **leakage-safe historical backtest**.
+# Veyra
 
-Veyra is not the first CI agent: Klue and Crayon exist. Its differentiators are persistent hypotheses, adversarial
-validation, independence-aware confidence, early-signal sources and measurable backtesting.
+**Hypothesis-driven competitive intelligence that tests its own conclusions.**
 
-Every output answers three questions: **what happened, why it matters, and what to do.** Every claim carries evidence
-links and dates.
+![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)
+![LangGraph](https://img.shields.io/badge/LangGraph-agents-1C3C3C)
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
+![PWA](https://img.shields.io/badge/PWA-installable-5A0FC8?logo=pwa&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-96%20passing-2EA043)
+![Free tier](https://img.shields.io/badge/LLM-free%20tiers%20only-F5B544)
 
-> College project for "Generative AI & Agentic AI". Demo walkthrough: [`docs/DEMO.md`](docs/DEMO.md).
+</div>
+
+---
+
+Most competitor-monitoring tools tell you **what changed**. Veyra tells you **what it probably means, how sure to be,
+and whether there's a boring explanation**.
+
+Veyra watches the public footprint of the companies you track: pricing pages, changelogs, job boards, news,
+certificate logs and sitemaps. Around what it finds, it keeps **persistent hypotheses** about each company's
+strategy, such as *"Vercel is moving toward usage-based billing"*. Its AI agents then:
+
+- **investigate** each hypothesis on their own, within strict budgets,
+- send a **skeptic** to argue the mundane explanation and actually **test it**,
+- **score confidence with deterministic, independence-aware maths** (three articles about one press release count
+  once),
+- and **measure their own accuracy** in a leakage-safe historical backtest.
+
+Every claim carries evidence links and dates, and every output answers three questions: **what happened, why it
+matters, and what to do.**
+
+> Veyra is not the first CI agent: Klue and Crayon exist. Its differentiators are persistent hypotheses, adversarial
+> validation, independence-aware confidence, early-signal sources and measured accuracy.
+
+## Table of contents
+
+- [Features](#features)
+- [How it works](#how-it-works)
+- [Architecture](#architecture)
+- [Tech stack](#tech-stack)
+- [Quick start (local)](#quick-start-local)
+- [Deployment](#deployment)
+- [Configuration](#configuration)
+- [Free LLM capacity](#free-llm-capacity)
+- [Notifications and the installable app](#notifications-and-the-installable-app)
+- [Using Veyra](#using-veyra)
+- [Evaluation](#evaluation)
+- [Security](#security)
+- [API reference](#api-reference)
+- [Project structure](#project-structure)
+- [Testing](#testing)
+- [Troubleshooting](#troubleshooting)
+- [Limitations](#limitations)
+
+## Features
+
+| | |
+|---|---|
+| 🧠 **Persistent hypotheses** | Claims about strategy (pricing, product, hiring, market) that gather evidence for and against over weeks, with a full belief timeline. |
+| 🔎 **Autonomous investigator** | Plans its own follow-up research with tools: job boards, changelogs, CT logs, sitemaps, page fetches. Bounded to 6 tool calls and 25 fetches per cycle, plus a token budget, and it stops when evidence stops moving confidence. |
+| 🥊 **Adversarial skeptic** | Before anything becomes "likely", it proposes at least 2 concrete mundane alternatives (an A/B test, replacement hiring, a single press release counted three times), runs a discriminating test for each, and records a verdict. |
+| 📐 **Deterministic belief engine** | Confidence comes from code, not the LLM: priors, source reliability, recency decay, origin-group independence, per-category caps and skeptic adjustments. Labelled *uncalibrated* until measured. |
+| 📡 **Early signals** | New subdomains in Certificate Transparency logs and new sitemap paths, labelled *leads, not proof*. |
+| 🧪 **Measured accuracy** | A replay of a frozen Wayback dataset, scored against ground truth labelled *before* the first run: precision, recall, lead time, Brier score and calibration with Wilson intervals, with contamination control. |
+| 💬 **Ask Veyra** | Chat grounded in the database through read-only tools. Answers cite only sources a tool returned, and belief timelines are drawn from stored history. |
+| 📰 **Daily briefs** | What happened / why it matters / what to do, with evidence links and the skeptic's strongest alternative. Saved as Markdown, with optional Slack posting. |
+| 🔔 **Push notifications** | Web Push to phones and desktops, even with the app closed, whenever an alert fires. |
+| 📲 **Installable PWA** | Works offline for the app shell, installs on Android, iOS and desktop. |
+| 🆓 **Free tiers only** | A pool of free LLM providers (Groq, Gemini, OpenRouter, Mistral, local Ollama) with automatic failover. |
+| 🔐 **Production ready** | Login, CSRF protection, strict security headers, a hardened Docker image, automatic HTTPS and one-command server setup. |
+
+## How it works
+
+```
+ Collect ─▶ Detect ─▶ Strategist ─▶ Judge ─▶ Investigator ─▶ Judge ─▶ Skeptic ─▶ Judge ─▶ Alerts ─▶ Push / Brief
+ (Python)   (Python)   (LLM)        (math)   (LLM + tools)   (math)   (LLM+tests) (math)   (rules)
+```
+
+1. **Collect.** Polite crawlers fetch each source: they respect robots.txt, wait at least 2 s per host, use a
+   descriptive User-Agent and cache responses.
+2. **Detect.** Pages are reduced to their main text. A deterministic noise filter drops dates, copyright years,
+   reordering and nav changes. Prices are compared line by line. Changes become **typed signals** (`price_change`,
+   `plan_change`, `feature_launch`, `hiring_spike`, `new_subdomain`, `removal`, and others) with evidence URLs, dates,
+   a priority and an **origin group**, so several reports of one event count once.
+3. **Strategist** (LLM). Links new signals to existing hypotheses (stance and relevance, cited by ID) and proposes at
+   most 2 new hypotheses, each with falsifiable predictions.
+4. **Judge** (no LLM). Recomputes every touched hypothesis deterministically:
+
+   ```
+   confidence = sigmoid( logit(prior) + Σ stance × relevance × source_reliability × event_confidence
+                                        × recency_decay × independence_weight × K )
+   ```
+   - **Independence:** the strongest item in an origin group counts 1.0 and the rest 0.2 each.
+   - **Decay:** half-lives are pricing 90 d, hiring 45 d, early signals 21 d.
+   - **Caps:** each category's contribution is capped.
+   - **Skeptic:** each surviving alternative subtracts 0.6 logits.
+5. **Investigator** (LLM, bounded). Researches hypotheses in the uncertain band (0.35–0.80). Findings may cite only
+   URLs or signals a tool actually returned.
+6. **Skeptic** (LLM). Challenges hypotheses at ≥ 0.60. A test that returns no data is always *inconclusive*, never
+   "refuted".
+7. **Alerts.** Fire only when a hypothesis is raised to *likely* **after** the skeptic has challenged it, or on a
+   critical signal (for example a price change above 20%). Alerts are pushed to every subscribed device.
+
+**Guardrails enforced in code, not prompts:**
+- Evidence can cite only what a tool returned.
+- A re-found URL joins its existing origin group.
+- Only news and blog items can be merged as "same event"; page diffs, job data and CT logs never are.
+- Nothing becomes *likely* unchallenged.
+- Every LLM call and tool call is logged to `agent_runs`.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  subgraph Sources["Public sources (robots.txt, >=2 s/host, cached)"]
+  subgraph Sources["Public sources"]
     P[Pricing / product / changelog pages]
     J[Greenhouse / Lever job boards]
-    N[Bing News RSS + company blog feeds]
+    N[Bing News RSS + company feeds]
     E[Cert Spotter CT logs + sitemaps]
   end
   Sources --> C[Collectors] --> S[(Snapshots)]
-  S --> D[Semantic diff + noise filter<br/>classify, priority, dedup, origin groups] --> SG[(Signals)]
+  S --> D[Semantic diff<br/>noise filter · priority · dedup] --> SG[(Signals)]
   SG --> ST
-  subgraph G["LangGraph agent graph (per competitor, per cycle)"]
-    ST[Strategist<br/>LLM strong] --> J1[Judge] --> IV[Investigator<br/>LLM fast, bounded tools] --> J2[Judge] --> SK[Skeptic<br/>LLM strong, runs tests] --> J3[Judge] --> AP[Alert policy +<br/>predictions]
+  subgraph G["LangGraph agent graph"]
+    ST[Strategist] --> J1[Judge] --> IV[Investigator] --> J2[Judge] --> SK[Skeptic] --> J3[Judge] --> AP[Alert policy]
   end
-  J1 & J2 & J3 -.deterministic.-> BE[Belief engine<br/>no LLM]
-  G --> H[(Hypotheses, evidence,<br/>belief history, alerts)]
-  H --> UI[React dashboard]
-  H --> CH[Ask Veyra chat<br/>read-only tools, citations]
+  J1 & J2 & J3 -.-> BE[Belief engine<br/>deterministic]
+  G --> H[(Hypotheses · evidence<br/>belief history · alerts)]
+  AP --> WP[Web Push<br/>FCM · APNs · Mozilla]
+  H --> UI[React PWA]
+  H --> CH[Ask Veyra]
   H --> BR[Daily brief]
-  RP[Replay over frozen<br/>Wayback dataset] --> G
-  RP --> EV[Metrics: precision, recall,<br/>lead time, Brier, calibration]
+  POOL[Free LLM pool<br/>Groq · Gemini · OpenRouter · Mistral · Ollama] -.-> ST & IV & SK & CH & BR
 ```
 
-Only the strategist, investigator, skeptic, chat and reporter call an LLM. Fetching, diffing, dedup, scoring, alert rules
-and scheduling are plain Python.
+In production a single origin serves everything: **Caddy** (HTTPS) → **FastAPI** (`/api/*` and the built PWA) →
+SQLite on a persistent volume.
 
-## Deploy with Docker (production)
+## Tech stack
 
-One container serves the app and API on one origin, with a login, security headers and a persistent data volume.
+| Layer | Technology |
+|---|---|
+| Backend | Python 3.11, FastAPI, Uvicorn, SQLAlchemy 2, Pydantic v2 |
+| Agents | LangGraph (explicit state graph), Pydantic-validated JSON outputs |
+| LLMs | Any OpenAI-compatible API; a free pool of Groq, Google Gemini, OpenRouter, Mistral and Ollama |
+| Collection | httpx, trafilatura, selectolax, feedparser; Wayback CDX for history |
+| Scheduling | APScheduler (in-process) |
+| Frontend | React 18, TypeScript, Vite 6, Tailwind CSS 4, Recharts, marked + DOMPurify |
+| PWA | vite-plugin-pwa (Workbox), Web Push (VAPID via pywebpush) |
+| Storage | SQLite (Postgres-compatible schema) |
+| Deployment | Docker (multi-stage, non-root, read-only), Docker Compose, Caddy (automatic HTTPS) |
+| Tests | pytest (96 tests: no network, no LLM) |
 
-1. Install Docker Desktop and start it.
-2. Copy `.env.example` to `.env` and set at least these (more free LLM keys = more capacity, see below):
-   ```ini
-   GROQ_API_KEY=gsk_...
-   VEYRA_ADMIN_PASSWORD=choose-a-long-password      # 10+ characters; protects every page and API call
-   VEYRA_SECRET_KEY=...                              # python -c "import secrets; print(secrets.token_hex(32))"
-   ```
-3. Start it:
-   ```bash
-   docker compose up -d --build
-   ```
-4. Open http://localhost:8000 and sign in. To install it as an app, use the **Install** icon in the browser's address bar
-   (Chrome or Edge), or **Share → Add to Home Screen** on iOS.
+## Quick start (local)
 
-**What production mode gives you:**
-- **Login:** a single admin password with HMAC-signed, HttpOnly, SameSite=Strict session cookies, a CSRF header on
-  every write, and 5 failed attempts per IP locking login for 15 minutes.
-- **Fails closed:** with `VEYRA_ENV=production`, the server **refuses to start** without a strong password and secret
-  key, so it can't run unprotected by accident.
-- **Locked-down responses:** a strict Content-Security-Policy, X-Frame-Options DENY and nosniff; API docs are turned
-  off; errors never include stack traces; private API data is never cached.
-- **Hardened container:** non-root user, read-only filesystem, `no-new-privileges`, a health check (`/healthz`),
-  automatic restart and rotated logs.
-- **Data:** the database, cache, briefs and backtest runs live in the `veyra-data` volume. Back it up with
-  `docker run --rm -v veyra-data:/data -v "%cd%":/b alpine tar czf /b/veyra-data.tgz -C /data .`
+**You need:** Python 3.11+ (on Windows, the python.org installer, run as `py -3.11`), Node.js 20+, and at least one
+free LLM key (see [Free LLM capacity](#free-llm-capacity)).
 
-**HTTPS:** the session cookie is `Secure`. Browsers allow that on `http://localhost`, but from another device you
-need HTTPS: put Caddy, nginx or Cloudflare Tunnel in front. For plain-HTTP access on your own network only, set
-`VEYRA_COOKIE_SECURE=false`.
-
-## Local development
-
-You need **Python 3.11+** (the python.org installer; on Windows run `py -3.11`), **Node.js 20+** and, for the agents and
-chat, a free **Groq API key** from [console.groq.com/keys](https://console.groq.com/keys).
-
+```bash
+git clone https://github.com/aryanpol73/veyra.git
+```
+```bash
+cd veyra
+```
 ```bash
 py -3.11 run.py
 ```
 
-The first run creates `backend/.venv`, installs dependencies, copies `.env.example` to `.env` and runs `npm install`. It
-then serves the dashboard at http://localhost:5173 and the API docs at http://127.0.0.1:8000/docs. **Ctrl+C** stops both
-servers, including their child processes. The app starts **empty**: the Overview walks you through adding your first
-competitor. Login is off in development unless you set `VEYRA_ADMIN_PASSWORD`.
+`run.py` does the rest on first run:
+- creates `backend/.venv` and installs the dependencies
+- copies `.env.example` to `.env`
+- runs `npm install`
+- starts the API on `:8000` and the dashboard at **http://localhost:5173**
 
-Put your key in `.env` (never commit it; `.env` is git-ignored):
+**Ctrl+C** stops both, including child processes. Add your keys to `.env` and restart.
 
-```ini
-LLM_PROVIDER=groq
-LLM_API_KEY=gsk_...
-```
+The app starts **empty**: the Overview walks you through adding your first competitor. In development, login is off
+unless you set `VEYRA_ADMIN_PASSWORD`.
 
-| Provider | `LLM_PROVIDER` | Key | Default strong / fast models |
-|---|---|---|---|
-| Groq (free tier) | `groq` | console.groq.com/keys | `openai/gpt-oss-120b` / `openai/gpt-oss-20b` |
-| Ollama Cloud (paid credits) | `ollama_cloud` | ollama.com/settings/keys | `gpt-oss:120b` / `gpt-oss:20b` |
-| Local Ollama | `ollama_local` | none | `llama3.1:8b` |
+> **Windows:** keep the repo at a short path such as `C:\Users\you\veyra`. A LangGraph dependency ships a DLL that
+> fails to load past Windows' 260-character path limit. `run.py` warns when the path is long. Use PowerShell or CMD;
+> Git Bash's `python` is MSYS2's, which breaks the virtual environment.
 
-Any OpenAI-compatible endpoint works through `LLM_BASE_URL`, `LLM_STRONG` and `LLM_FAST`. Use **Test LLM** on the
-Overview page to check the connection. Without a key, the dashboard and collectors still work: signals are rule-classified
-and the agents are skipped.
+## Deployment
 
-> **Windows:** keep the repo at a short path such as `C:\Users\you\veyra`. LangGraph's `xxhash` dependency ships a DLL
-> that fails to load past the 260-character path limit. `run.py` warns when the path is long.
-
-## Free LLM capacity (no paid tier needed)
-
-No single free tier is enough for Veyra, so it uses a **pool of free models with automatic failover**
-(`backend/app/llm_pool.py`):
-- **Daily cap:** when a model hits its cap, it rests until the reset and the next one takes over.
-- **Bad key or model:** a bad key, an unknown model or a "needs credits" (402) response parks that endpoint for 6 hours.
-
-Every key is optional; add as many as you like to `.env`:
-
-| Key | Where (free) | What you get |
-|---|---|---|
-| `GROQ_API_KEY` | console.groq.com/keys | 3 models (`gpt-oss-120b`, `gpt-oss-20b`, `qwen3.8-27b`), ~200k tokens/day **each** |
-| `MISTRAL_API_KEY` | console.mistral.ai ("Experiment" plan) | large monthly allowance; phone verification; free-plan data may be used for training |
-| `GEMINI_API_KEY` | aistudio.google.com/apikey | Gemini Flash / Flash-Lite free tier |
-| `OPENROUTER_API_KEY` | openrouter.ai/keys | `:free` models, 50 requests/day |
-| `OLLAMA_LOCAL=true` | ollama.com/download | unlimited and offline on your own PC (needs a decent GPU or patience) |
-
-Check which keys work:
+### Option A: Docker on any machine
 
 ```bash
-cd backend && .venv/Scripts/python -m app.llm_check        # Docker: docker exec veyra python -m app.llm_check
+docker compose up -d --build
 ```
 
-Free-tier limits change often, so check each provider's dashboard. The pool adapts on its own: whatever a provider
-answers, it rests, fails over or waits.
+This needs, in `.env`:
+- at least one LLM key
+- `VEYRA_ADMIN_PASSWORD` (10+ characters)
+- `VEYRA_SECRET_KEY`, generated with `python -c "import secrets; print(secrets.token_hex(32))"`
 
-## Notifications on your phone and desktop
+Then open `http://localhost:8000` (change it with `VEYRA_PORT`). The container:
+- **is hardened:** non-root, read-only filesystem, `no-new-privileges`, a health check, automatic restart and rotated
+  logs;
+- **keeps data** in the `veyra-data` volume;
+- **runs scheduled cycles** every 6 hours.
 
-Veyra sends **Web Push** notifications when an alert fires: a hypothesis is raised to *likely* after the skeptic
-challenged it, or a critical signal arrives. Delivery goes through the browser makers' push services (Google, Apple,
-Mozilla), so a notification reaches a subscribed device **wherever it is, even with Veyra closed**. If the device is
-offline, it arrives when the device reconnects (held for up to 24 h).
+### Option B: public, free, always on (recommended)
 
-1. **Keep Veyra running.** Use Docker with `restart: unless-stopped`; scheduled checks run every 6 h by default
-   (`CYCLE_INTERVAL_MIN`). Alerts can only fire while the server is on.
-2. **Open Veyra over HTTPS on each device once.** Phones can't reach `localhost`, and push needs HTTPS. Free and private:
-   install [Tailscale](https://tailscale.com) on the PC and the phone, sign in to both with the same account, then on the PC run
+Follow **[docs/DEPLOY.md](docs/DEPLOY.md)**. In short:
+
+1. Create an **Oracle Cloud Always Free** Ubuntu server (permanently free: always on, persistent disk).
+2. Get a free domain at **DuckDNS** pointing at it.
+3. On the server, run:
    ```bash
-   tailscale serve --bg 8000
+   curl -fsSL https://raw.githubusercontent.com/aryanpol73/veyra/main/deploy/setup-ubuntu.sh -o setup.sh && bash setup.sh
    ```
-   It prints a private `https://<pc-name>.<tailnet>.ts.net` address that only your devices can open. (Cloudflare
-   Tunnel is a free public alternative.)
-3. **Enable notifications on each device.** Open **Overview → Notifications → Enable notifications**, then **Send test
-   notification**. What each device needs:
-   - **Android:** Chrome or Edge. Installing the app is optional, but stops Chrome revoking the permission later.
-   - **iPhone/iPad (iOS 16.4+):** Safari → **Share → Add to Home Screen**, then open Veyra **from the home-screen
-     icon** and enable it there. iOS doesn't offer web push to a normal Safari tab.
-   - **Desktop:** Chrome, Edge, Firefox or Safari. It works in a tab; installing the app (the address-bar icon) keeps
-     it one click away.
 
-Each device subscribes separately. Push keys (VAPID) are created on first use and stored in the data volume. Keep the
-volume: new keys would invalidate every existing subscription.
+The script installs Docker, opens the firewall, asks for your domain, password and keys, and starts Veyra behind
+**Caddy**, which gets a Let's Encrypt certificate automatically. You get `https://your-name.duckdns.org`, installable
+on your phone, with push notifications.
 
-## Using it
+Free hosts that sleep or have no persistent disk, such as Render's free tier, can't run Veyra: it must stay on to
+check competitors and send alerts.
 
-| Page | What it shows |
-|---|---|
-| **Overview** | KPIs, top hypotheses, high-priority signals, and alerts with **Useful / Noise** buttons |
-| **Hypotheses** (flagship) | Status and confidence band, evidence for and against with links and weights, belief-over-time chart, skeptic alternatives with the test each ran and its verdict, investigation log, predictions |
-| **Intelligence Feed** | Typed signals filtered by competitor, category and priority; **Run cycle now**; badges for Early Signal, Removal, Synthetic and Replay |
-| **Competitors** | Track **any company in any field**: type its domain and press **Discover**. Veyra finds the pricing page, changelog, RSS feeds and Greenhouse/Lever job board for you to review. |
-| **Ask Veyra** | Chat grounded in the database, with cited sources and belief timelines |
-| **Evaluation** | Backtest metrics, calibration with Wilson intervals, the contamination-mode switch and a caveat banner |
-| **Reports** | Archive of daily briefs: generate one and read it |
+## Configuration
 
-Main API endpoints (under `/api` in production):
-- **Competitors and data:** `GET/POST/PUT/DELETE /competitors`, `GET /signals`, `GET /hypotheses`, `GET /hypotheses/{id}`, `GET /alerts`
-- **Cycles:** `POST /cycle/run` (body `{"collect": true, "agents": true}`), `GET /cycle/status`
-- **Alerts:** `POST /alerts/{id}/feedback`
-- **Chat and briefs:** `POST /chat`, `POST /reports/daily`, `GET /reports`
-- **Evaluation:** `POST /eval/run`, `GET /eval/runs/latest`
-- **Auth and health:** `POST /auth/login`, `POST /auth/logout`, `GET /auth/status`, `GET /healthz` (public)
+All settings come from environment variables or `.env`. See [`.env.example`](.env.example) for a template.
 
-## How the agent core works
-
-Each cycle, per competitor: `strategist -> judge -> investigator -> judge -> skeptic -> judge -> alert policy`.
-
-| Step | LLM? | What it does |
+| Variable | Default | Purpose |
 |---|---|---|
-| Strategist | strong | Links new signals to hypotheses (stance and relevance, cited by ID). Proposes at most 2 new hypotheses with falsifiable predictions. Flags news items that report the same event. |
-| Investigator | fast | Bounded tool loop on hypotheses in the uncertain band (0.35–0.80): at most 6 tool calls, 25 fetches per cycle, plus a token budget. Stops when new evidence stops moving confidence. |
-| Skeptic | strong | At confidence >= 0.60, proposes >= 2 concrete mundane alternatives, each with a tool test that is **actually run**, then gives a strict verdict per alternative. |
-| Judge | no | Deterministic belief engine (`backend/app/belief/engine.py`), status, alert policy and prediction registry |
+| `GROQ_API_KEY` / `LLM_API_KEY` | – | Groq key (`LLM_API_KEY` is used when `LLM_PROVIDER=groq`) |
+| `GEMINI_API_KEY` | – | Google AI Studio key |
+| `OPENROUTER_API_KEY` | – | OpenRouter key (uses its current `:free` models) |
+| `MISTRAL_API_KEY` | – | Mistral free "Experiment" plan |
+| `OLLAMA_LOCAL` / `OLLAMA_API_KEY` | `false` / – | Local Ollama, or Ollama Cloud (needs credits) |
+| `LLM_STRONG_CHAIN`, `LLM_FAST_CHAIN` | built-in | Custom failover order, e.g. `groq:openai/gpt-oss-120b,mistral:mistral-medium-latest` |
+| `VEYRA_ENV` | `development` | `production` requires a strong password and secret, and disables API docs |
+| `VEYRA_ADMIN_PASSWORD` | – | Single admin login (10+ characters in production) |
+| `VEYRA_SECRET_KEY` | – | Signs session cookies (32+ random characters) |
+| `VEYRA_COOKIE_SECURE` | on in production | Secure cookies; set `false` only for plain-HTTP LAN use |
+| `VEYRA_PORT` | `8000` | Host port for Docker without Caddy |
+| `VEYRA_DOMAIN` | – | Public domain for the Caddy deployment |
+| `VEYRA_DATA_DIR` | `data/` (`/data` in Docker) | Database, cache, briefs, eval runs, push keys |
+| `SCHEDULER_ENABLED` / `CYCLE_INTERVAL_MIN` | off locally, on in Docker / `360` in Docker (`720` otherwise) | Automatic collection and agent cycles |
+| `USER_AGENT_EMAIL` | `veyra-bot@example.com` | Contact address in the crawler's User-Agent |
+| `SLACK_WEBHOOK_URL` | – | Post daily briefs to Slack |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | auto-generated | Pin your own Web Push keys |
+| `INVESTIGATOR_ROLE` | `fast` | Model tier the investigator uses (`strong` for quality) |
+| `LOG_LEVEL` | `INFO` | Server log level |
 
-**Confidence** = sigmoid(logit(prior) + Σ stance × relevance × source reliability × event confidence × recency decay ×
-independence × K).
-- **Independence:** the strongest item in an origin group counts 1.0; the rest count 0.2 each.
-- **Recency:** each category has its own half-life (pricing 90 days, hiring 45, early signals 21).
-- **Caps and skeptic:** each category's total is capped, and surviving skeptic alternatives subtract.
+Agent budgets (tool calls, fetches, tokens, the uncertain band and thresholds) live in
+[`backend/app/config.py`](backend/app/config.py).
 
-Three confidences are kept apart:
-- *event confidence*: did it happen?
-- *interpretation confidence*: is our reading right? This is the score shown.
-- *prediction confidence*: will the forecast come true?
+## Free LLM capacity
 
-**Guardrails enforced in code, not prompts:**
-- Evidence can cite only signal IDs or URLs that a tool actually returned.
-- A re-found URL joins the existing signal's origin group, so it isn't counted twice.
-- Only news and blog items can be merged as "same event"; page diffs, job data and CT logs are never merged.
-- Nothing becomes "likely" before the skeptic has challenged it, and alerts never fire on unchallenged claims.
-- A skeptic test that returns no data is always "inconclusive". The model had "refuted" alternatives on empty results.
-- Interactive calls never wait minutes on a rate limit.
+No single free tier is big enough, so Veyra keeps a **pool** ([`llm_pool.py`](backend/app/llm_pool.py)):
+- **Order:** each role ("strong" for strategy/skeptic/chat, "fast" for classification/investigation) has an ordered
+  list of free endpoints.
+- **Daily caps:** when one hits its daily cap, it rests until the reset and the next takes over.
+- **Bad keys or models:** bad keys, retired models and "needs credits" (402) responses park an endpoint for 6 h.
+- **Throttling:** each endpoint has its own tokens-per-minute throttle.
+- **JSON mode:** turned off automatically where a provider doesn't support it.
+- **OpenRouter:** its free models are looked up live every 6 h, because that list changes often.
 
-Every LLM call and tool call is logged to `agent_runs`.
+| Key | Where (free) | Notes |
+|---|---|---|
+| `GROQ_API_KEY` | [console.groq.com/keys](https://console.groq.com/keys) | 3 models with **separate** daily caps (~200k tokens/day each) |
+| `GEMINI_API_KEY` | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) | Gemini Flash / Flash-Lite free tier |
+| `OPENROUTER_API_KEY` | [openrouter.ai/keys](https://openrouter.ai/keys) | `:free` models, 50 requests/day |
+| `MISTRAL_API_KEY` | [console.mistral.ai](https://console.mistral.ai) | Large free allowance; phone verification; free-plan data may be used for training |
+| `OLLAMA_LOCAL=true` | [ollama.com](https://ollama.com/download) | Unlimited and offline on your own hardware |
 
-## Evaluation (pilot backtest)
+Check every key with one tiny request each:
+
+```bash
+docker exec veyra python -m app.llm_check
+```
+
+(Locally: `cd backend` then `.venv\Scripts\python -m app.llm_check`.) Free-tier limits change often; check each
+provider's dashboard.
+
+## Notifications and the installable app
+
+**Install it:**
+- **Android:** Chrome → menu → *Install app*.
+- **iPhone/iPad:** Safari → *Share → Add to Home Screen*.
+- **Desktop:** the install icon in Chrome or Edge's address bar.
+
+The app shell is precached and works offline. API data is never cached, because it's private and must be fresh.
+
+**Push notifications** use the browser makers' push services (Google FCM, Apple, Mozilla):
+- **Delivery:** alerts reach each subscribed device **wherever it is, with the app closed**. If the device is offline,
+  they arrive when it reconnects (held up to 24 h).
+- **Critical alerts** stay on screen until dismissed (where the platform supports it).
+- **Enabling:** Overview → **Notifications → Enable**, then **Send test notification**, once per device.
+
+What notifications need:
+- The server running, with scheduled cycles on (the default in Docker).
+- HTTPS: the public deployment, or `http://localhost` on the same machine.
+- On **iOS (16.4+)**: enabled from the **home-screen app**. iOS doesn't offer web push to a normal Safari tab.
+
+## Using Veyra
+
+| Page | What it does |
+|---|---|
+| **Overview** | KPIs, top hypotheses, high-priority signals, alerts with *Useful / Noise* feedback, notifications, system status and the LLM test |
+| **Hypotheses** | Status and confidence ring, evidence for and against with weights, belief-over-time chart (and a table view), skeptic alternatives with their tests and verdicts, investigation log, predictions |
+| **Intelligence Feed** | Every signal with evidence and provenance (Early Signal, Removal, Replay, Synthetic); **Run cycle now** |
+| **Competitors** | Add **any company in any field**: type a domain and press **Discover**, and Veyra finds its pricing page, changelog, feeds and job board for you to review |
+| **Ask Veyra** | Questions like *"How has X's pricing evolved?"*, answered from belief history with cited sources |
+| **Evaluation** | Backtest metrics, calibration chart with Wilson intervals, contamination-mode switch, run button |
+| **Reports** | Daily brief archive; generate a new brief on demand |
+
+## Evaluation
+
+Veyra measures its own accuracy with a **leakage-safe replay**:
 
 ```bash
 cd backend
-.venv/Scripts/python -m app.eval.dataset                       # (re)build the frozen Wayback dataset
-.venv/Scripts/python -m app.eval.run_eval --mode masked --synthetic
-.venv/Scripts/python -m app.eval.run_eval --mode none          # flagged "possibly contaminated"
-.venv/Scripts/python -m app.eval.run_eval --score-only ../data/eval/<replay>.db   # re-score without the LLM
-.venv/Scripts/python -m app.eval.import_replay ../data/eval/<replay>.db           # browse it on the Hypotheses page
+.venv/Scripts/python -m app.eval.run_eval --mode masked --synthetic   # Docker: docker exec veyra python -m app.eval.run_eval ...
 ```
 
-- **Data:** `data/replay/` holds 107 monthly Wayback captures (Jan–Nov 2026) of each competitor's pricing, homepage and
-  changelog pages plus blog feeds. Jobs, CT logs and news search have no reliable public history, so they're off in replay.
-- **Replay:** the same detectors and agent graph run month by month (`as_of`) from 2026-05-01 to 2026-11-18, in their own
-  SQLite file. Tools filter by `as_of`, any live fetch raises an error, and `tests/test_replay.py` asserts that no data
-  after `as_of` leaks in.
-- **Ground truth:** `backend/app/eval/ground_truth.yaml` has 15 real events, each dated by an official announcement. It
-  was labelled and committed (`2be03ce`) **before the first replay**; matching is keyword-on-statement, as defined in the file.
-- **Metrics:** precision, recall, lead time, false-positive rate, false alarms per competitor-month, Brier scores, and
-  3-bin calibration with Wilson 95% intervals. Peak-confidence calibration is a secondary view added after the first run.
-- **Contamination control:**
-  - `masked` replaces company and product names with tokens in every prompt.
-  - `none` is unmasked.
-  - `post_cutoff` keeps only events after the model's training cutoff. gpt-oss's cutoff is mid-2024, so on this 2026
-    dataset it keeps every event.
-  - The **synthetic injection test** checks the machinery: independent evidence must beat one press release counted
-    three times by at least 0.05. It measures nothing about real-world accuracy.
+- **Data:** `data/replay/` has 107 monthly Wayback captures (Jan–Nov 2026) of 3 companies' pricing, homepage and
+  changelog pages and blog feeds.
+- **Replay:** the same pipeline steps `as_of` month by month in its own database. Tools filter by `as_of`, any live
+  fetch raises an error, and tests assert that nothing after `as_of` leaks in.
+- **Ground truth:** [`ground_truth.yaml`](backend/app/eval/ground_truth.yaml) has 15 real events, each dated by an
+  official announcement. It was labelled and committed **before** the first replay.
+- **Metrics:** precision, recall, lead time, false-positive rate, false alarms per competitor-month, Brier score, and
+  3-bin calibration with Wilson 95% intervals.
+- **Contamination control:** `masked` hides company and product names from every prompt; `none` is flagged *possibly
+  contaminated*.
+- **Synthetic test:** checks that independent evidence beats one press release counted three times, by at least 0.05.
 
-### Pilot results (masked mode, run #3, 2026-11-19)
+**Pilot results** (masked, 2026-11-19):
 
-| Metric | Value | n |
-|---|---|---|
-| Precision | 0.13 | 15 detected hypotheses |
-| Recall | 0.13 | 15 events |
-| Lead time (true positives) | +90 d, +60 d | 2 |
-| False alarms per competitor-month | 0.66 | |
-| Brier (hypotheses, final confidence) | 0.405 | 18 |
-| Brier (resolved predictions) | 0.335 | 18 |
-| Calibration, high bin (>= 0.7) | 1/8 hits, Wilson 95% [0.02, 0.47] | 8 |
+| Metric | Value |
+|---|---|
+| Precision / recall | 0.13 / 0.13 (n = 15) |
+| True positives | 2, both early: **+90 and +60 days** before announcement |
+| Calibration, high bin | 1/8 hits, Wilson 95% [0.02, 0.47] |
 
-**What the results mean:**
-- **Two early catches:** Veyra caught Vercel's enterprise commitment contracts and its AI Gateway build-out months
-  before they were announced.
-- **Most specific launches missed** (Vercel CI, Figma Motion, Specs). Its hypotheses are broad themes, such as
-  "building a developer platform", that the pre-declared keywords don't match.
-- **Overconfident scores:** most high-confidence hypotheses don't correspond to a specific event, so the scores are
-  **uncalibrated**.
-- **Degraded run:** one strategist call hit Groq's daily cap on the final step.
-- **Re-run pending:** the synthetic test then exposed a flaw, the strategist merging independent page diffs. It's fixed
-  and regression-tested, so **both modes need a re-run** for post-fix numbers.
+**What these numbers mean:**
+- **The early catches are real:** Vercel's enterprise commitment contracts and its AI Gateway build-out.
+- **Most specific launches were missed,** because the hypotheses tend to be broad themes.
+- **Scores are overconfident**, so they stay labelled *uncalibrated*.
+- **This run predates two fixes** found by the synthetic test (same-event merging, and skeptic verdicts on empty
+  tests), so a re-run is pending. One backtest uses about 230k tokens, so plan around free-tier daily caps.
 
-## Data sources
+## Security
 
-| Source | Endpoint | Notes |
-|---|---|---|
-| Pages | Competitor pricing, homepage and changelog | trafilatura main text. The first run diffs against a Wayback capture >= 30 days old |
-| Jobs | Greenhouse and Lever public JSON | Broad terms like "AI" count only in job titles, because company blurbs mention AI everywhere |
-| News | Bing News RSS + company blog/changelog feeds | Google News RSS is robots-disallowed, so it isn't used |
-| Early signals | Cert Spotter CT API, `sitemap.xml` | Leads, not proof. crt.sh is robots-disallowed; Cert Spotter allows ~10 anonymous requests/hour |
+**Authentication**
+- **Login:** a single admin password, compared in constant time.
+- **Sessions:** HMAC-signed, **HttpOnly, SameSite=Strict** cookies (Secure in production) that last 7 days.
+- **Brute force:** 5 failed attempts per IP lock login for 15 minutes.
 
-LinkedIn, review sites and social platforms are deliberately not scraped.
+**Requests**
+- **CSRF:** every state-changing request must carry the `X-Veyra` header, which browsers never add cross-site.
 
-## Tests
+**Fails closed**
+- With `VEYRA_ENV=production`, the server **refuses to start** without a strong password and secret.
+
+**Responses**
+- **Headers:** strict Content-Security-Policy (no inline scripts, no third-party origins), `X-Frame-Options: DENY`,
+  `nosniff`, a referrer policy and HSTS.
+- **Errors and caching:** API docs are off in production, error messages never include stack traces, and private
+  responses are `no-store`.
+
+**Runtime**
+- **Container:** non-root user, read-only root filesystem, `no-new-privileges`.
+- **Network:** behind Caddy, Veyra has no public port.
+
+**Secrets and data**
+- **Secrets:** `.env` is git-ignored, and the setup script writes it as `chmod 600`. Web Push keys live in the data
+  volume (`0600`).
+- **Crawling:** respects robots.txt and doesn't scrape LinkedIn, review sites or social platforms.
+
+## API reference
+
+All routes are under `/api` in production (FastAPI's interactive docs are at `/docs` in development). Everything except
+`/healthz` and `/auth/*` requires login.
+
+| Area | Endpoints |
+|---|---|
+| Auth | `POST /auth/login` · `POST /auth/logout` · `GET /auth/status` |
+| Health | `GET /healthz` (public) · `GET /health` (`?llm_check=true` pings the pool) |
+| Competitors | `GET/POST /competitors` · `GET/PUT/DELETE /competitors/{id}` · `GET /sources` · `GET /discover?domain=` |
+| Cycles | `POST /cycle/run` (`{"collect": true, "agents": true}`) · `GET /cycle/status` |
+| Signals | `GET /signals?competitor&category&priority&type&since` · `GET /signals/stats` |
+| Hypotheses | `GET /hypotheses` · `GET /hypotheses/{id}` (evidence, history, challenges, investigations, predictions) |
+| Alerts | `GET /alerts` · `POST /alerts/{id}/feedback` |
+| Chat & briefs | `POST /chat` · `POST /reports/daily` · `GET /reports` · `GET /reports/daily` · `GET /reports/{date}` |
+| Overview | `GET /overview` · `GET /agent-runs` |
+| Evaluation | `POST /eval/run` · `GET /eval/status` · `GET /eval/runs` · `GET /eval/runs/latest` · `GET /eval/runs/{id}` |
+| Push | `GET /push/key` · `GET /push/status` · `POST /push/subscribe` · `POST /push/unsubscribe` · `POST /push/test` |
+
+## Project structure
+
+```
+veyra/
+├── backend/
+│   ├── app/
+│   │   ├── main.py            API routes          server.py   production server (API under /api + PWA)
+│   │   ├── auth.py            login, sessions     push.py     Web Push (VAPID, subscriptions, delivery)
+│   │   ├── llm.py · llm_pool.py · llm_check.py      free-tier LLM pool with failover
+│   │   ├── cycle.py           collection + agent cycle runner, scheduler hook
+│   │   ├── collectors/        pages, jobs, news, early signals, wayback, discovery, polite fetcher
+│   │   ├── detect/            semantic diff, detectors, priority/dedup/origin groups, snapshots
+│   │   ├── agents/            LangGraph graph, strategist, investigator, skeptic, judge, chat, tools, prompts
+│   │   ├── belief/engine.py   deterministic confidence scoring
+│   │   ├── eval/              dataset, replay, metrics, run_eval, ground_truth.yaml, import_replay
+│   │   ├── reports/brief.py   daily brief
+│   │   └── db/                models, session, sources
+│   └── tests/                 96 tests
+├── frontend/                  React + Vite + Tailwind PWA (pages, components, service-worker push handlers)
+├── data/replay/               frozen Wayback dataset (committed); runtime data is git-ignored
+├── deploy/                    Caddyfile, setup-ubuntu.sh
+├── docs/                      DEPLOY.md (public deployment), DEMO.md (demo script)
+├── Dockerfile · docker-compose.yml · docker-compose.deploy.yml
+└── run.py                     one-command local start
+```
+
+## Testing
 
 ```bash
-cd backend && .venv/Scripts/python -m pytest -q      # 94 tests, no network, no LLM
+cd backend
+.venv/Scripts/python -m pytest -q
 ```
 
-They cover:
-- the belief engine (independence, decay, caps, skeptic adjustments, status gates)
-- detection (noise filter, line-paired prices, boilerplate stripping)
-- agent guardrails (citations, merges, lenient formats)
-- replay leakage, metrics, the LLM client's retry and fallback paths, chat grounding, and briefs
+96 tests, with no network and no LLM calls. They cover:
+- the belief engine
+- change detection (noise filter, line-paired prices, boilerplate stripping)
+- agent guardrails (citations, merges, skeptic rules)
+- replay leakage and metrics
+- the LLM pool's failover and retry paths
+- chat grounding, briefs and discovery
+- auth (sessions, tampering, CSRF, throttling)
+- the production server (headers, static files, SPA fallback, path traversal)
+- Web Push
 
-## Project layout
+Frontend:
 
+```bash
+cd frontend
+npx tsc -b && npm run build
 ```
-backend/app/
-  collectors/   pages, jobs, news, early_signals, wayback, polite cached fetcher
-  detect/       semantic_diff, detectors, normalize (priority, dedup, origin groups), snapshot
-  agents/       graph (LangGraph), strategist, investigator, skeptic, judge, chat, tools, schemas, prompts
-  belief/       engine.py: the deterministic scoring
-  eval/         dataset, replay, metrics, run_eval, ground_truth.yaml
-  reports/      brief.py
-frontend/src/   pages (Overview, Hypotheses, Feed, Competitors, Ask, Evaluation, Reports), components
-data/replay/    frozen Wayback dataset (committed); veyra.db, cache/, eval/, reports/ are git-ignored
-```
+
+## Troubleshooting
+
+| Problem | Fix |
+|---|---|
+| `port is already allocated` | Another server is on that port. Stop it, or set `VEYRA_PORT=8080` in `.env`. |
+| Container exits with "refusing to start" | Set `VEYRA_ADMIN_PASSWORD` (10+ characters) and `VEYRA_SECRET_KEY` (32+) in `.env`. |
+| `No module named app.llm_check` | The container predates the feature: rebuild with `docker compose up -d --build`. |
+| Agents skipped: "no LLM configured" | Add at least one key, then run `app.llm_check`. |
+| "rate limit is reached" in chat | Free-tier caps; the pool fails over. Add more free keys for more capacity. |
+| `filename or extension is too long` (Windows) | Move the repo to a shorter path. |
+| No notification on iPhone | Enable it from the **home-screen app** (iOS 16.4+), not a Safari tab. |
+| Docker engine not running | Open Docker Desktop once after each reboot. |
 
 ## Limitations
 
-**Scores**
-- Confidence scores are an **uncalibrated heuristic**, and the pilot calibration shows they are overconfident.
+- **The evaluation is a pilot:** 15 events, one labeller, keyword matching, monthly replay steps (lead times accurate
+  to about ±30 days), and scores that are not yet calibrated.
+- **Early signals are leads, not proof:** on the first run, a "new subdomain" means every live certificate for it is
+  under 21 days old.
+- **Hiring-spike z-scores** use the current board, so filled roles that disappeared are under-counted.
+- **Sites that block bots or need JavaScript** yield little text, so Discover may find nothing on them.
+- **Free-tier LLM limits** constrain how much runs per day, and providers change their free models often.
+- **Single admin, single process:** there are no multi-user accounts, and the app scales up, not out (one process
+  holds the cycle status and the single SQLite writer).
+- **Alert feedback** (Useful / Noise) is stored but not learned from yet.
 
-**The evaluation**
-- It's a pilot: 15 events, one labeller and keyword matching. Monthly replay steps make lead times accurate to about
-  ±30 days.
-- Masking hides names, not facts, so a model may still recognise a company from product details. If the model
-  invents a variant of a masked token (e.g. `companya.com` for `companya.example`), it isn't unmasked.
-- Replay classifies signals with rules, while the live system uses the LLM; replay also has no jobs, CT or news history.
-- Replay run #3 predates the skeptic "no data means inconclusive" rule, so some of its stored verdicts are "refuted" on
-  empty tests.
+---
 
-**Signals**
-- CT-log and sitemap signals are **leads, not proof**. On the first run, a "new subdomain" means every live certificate
-  for it is under 21 days old, so a renewal can occasionally look new.
-- Hiring-spike z-scores use posting dates on the *current* board. Filled roles disappear, so older weeks are
-  under-counted.
-
-**The free LLM tier**
-- Groq's free tier allows 8k tokens/minute and 200k/day per model. One masked backtest uses ~230k, so a masked +
-  unmasked pair takes two days.
-- Groq's model lineup changes. If a model 404s, set `LLM_STRONG` / `LLM_FAST` in `.env`.
-
-**Deployment**
-- Single admin, single tenant; no user accounts or roles.
-- One server process by design (in-process cycle status and one SQLite writer), so scale up, not out.
-
-**Not built yet**
-- Alert feedback is stored but not learned from.
-- Local development has no scheduler unless `SCHEDULER_ENABLED=true` (Docker enables it by default).
-- Web Push needs the server running and each device subscribed once over HTTPS (see *Notifications*). iOS supports it
-  only for the home-screen app, without images or action buttons.
+<div align="center">
+Built by <a href="https://github.com/aryanpol73">@aryanpol73</a> as a Generative AI &amp; Agentic AI project.
+</div>

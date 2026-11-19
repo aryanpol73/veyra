@@ -1,0 +1,37 @@
+# Public deployment: Caddy in front with automatic HTTPS; Veyra itself is not exposed.
+#   docker compose -f docker-compose.yml -f docker-compose.deploy.yml up -d --build
+# Needs in .env: VEYRA_DOMAIN (a domain whose DNS points at this server) plus the usual keys/secrets.
+services:
+  veyra:
+    ports: !reset []          # only reachable through Caddy
+    expose:
+      - "8000"
+    environment:
+      VEYRA_COOKIE_SECURE: "true"   # public HTTPS: Secure cookies + HSTS
+
+  caddy:
+    image: caddy:2.8.4-alpine
+    container_name: veyra-caddy
+    restart: unless-stopped
+    depends_on:
+      veyra:
+        condition: service_healthy
+    environment:
+      VEYRA_DOMAIN: ${VEYRA_DOMAIN:?set VEYRA_DOMAIN in .env}
+    ports:
+      - "${CADDY_HTTP_PORT:-80}:80"
+      - "${CADDY_HTTPS_PORT:-443}:443"
+      - "${CADDY_HTTPS_PORT:-443}:443/udp"   # HTTP/3
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data          # certificates: keep this volume
+      - caddy-config:/config
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+volumes:
+  caddy-data:
+  caddy-config:
