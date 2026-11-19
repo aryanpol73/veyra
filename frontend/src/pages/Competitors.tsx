@@ -1,10 +1,21 @@
-import { FormEvent, useState } from "react";
+import { CSSProperties, FormEvent, ReactNode, useState } from "react";
 import { api, Competitor, CompetitorIn } from "../api/client";
-import { Badge, Card, Empty, ErrorBox, btnCls, inputCls, useLoad } from "../components/ui";
+import { Badge, Card, Empty, ErrorBox, PageHeader, ProvenanceTag, Skeleton, Tone, btnCls, btnSecondaryCls, inputCls, useLoad } from "../components/ui";
+import { IconExternal, IconPlus, IconSearch, IconTrash } from "../components/icons";
 
-const TONE = { page: "info", jobs: "ok", news: "muted", early_signal: "warn" } as const;
+const TONE: Record<string, Tone> = { page: "info", jobs: "ok", news: "muted", early_signal: "warn" };
 
 const blank: CompetitorIn = { name: "", domain: "", pricing_url: "", product_urls: [], careers_provider: null, careers_token: "", news_query: "" };
+
+function Field({ label, children, wide, hint }: { label: string; children: ReactNode; wide?: boolean; hint?: ReactNode }) {
+  return (
+    <label className={`flex min-w-0 flex-col gap-1 ${wide ? "md:col-span-2" : ""}`}>
+      <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-ink-2">{label}</span>
+      {children}
+      {hint && <span className="text-xs text-muted">{hint}</span>}
+    </label>
+  );
+}
 
 export default function Competitors() {
   const [list, err, reload] = useLoad(() => api.get<Competitor[]>("/competitors"));
@@ -70,61 +81,85 @@ export default function Competitors() {
   const set = (k: keyof CompetitorIn) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value });
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Competitors</h1>
-        <button className={btnCls} onClick={() => setOpen((o) => !o)}>{open ? "Cancel" : "Add competitor"}</button>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        index="04"
+        title="Competitors"
+        description="Tracked companies and every source Veyra watches for them."
+        actions={<button className={open ? btnSecondaryCls : btnCls} aria-expanded={open} onClick={() => setOpen((o) => !o)}>{open ? "Cancel" : <><IconPlus />Add competitor</>}</button>}
+      />
       {err && <ErrorBox error={err} />}
       {open && (
-        <Card title="New competitor">
-          <form onSubmit={submit} className="grid gap-3 md:grid-cols-2">
-            <div className="text-sm md:col-span-2">
-              Domain
-              <div className="flex gap-2">
-                <input required placeholder="any company, e.g. duolingo.com" className={inputCls} value={form.domain} onChange={set("domain")}
-                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); discover(); } }} />
-                <button type="button" className={btnCls} onClick={discover} disabled={discovering || !form.domain.trim()}>
-                  {discovering ? "Discovering…" : "Discover"}
-                </button>
+        <div className="anim-route">
+          <Card title="New competitor">
+            <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
+              <div className="flex min-w-0 flex-col gap-1 md:col-span-2">
+                <label htmlFor="comp-domain" className="font-mono text-[11px] uppercase tracking-[0.1em] text-ink-2">Domain <span aria-hidden="true" className="text-accent">*</span></label>
+                <div className="flex gap-2">
+                  <input id="comp-domain" required placeholder="any company, e.g. duolingo.com" className={inputCls} value={form.domain} onChange={set("domain")}
+                    aria-describedby="comp-domain-hint"
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); discover(); } }} />
+                  <button type="button" className={btnSecondaryCls} onClick={discover} disabled={discovering || !form.domain.trim()}>
+                    <IconSearch />{discovering ? "Discovering…" : "Discover"}
+                  </button>
+                </div>
+                <p id="comp-domain-hint" className="text-xs text-muted">Type a domain and press Discover: Veyra visits the site politely and fills in the fields below. Review them before saving.</p>
+                {notes.length > 0 && (
+                  <ul className="mt-1 space-y-0.5 rounded-[3px] border border-line bg-surface-2 p-2.5 font-mono text-xs text-ink-2" aria-live="polite">
+                    {notes.map((n) => <li key={n} className="before:mr-1.5 before:text-muted before:content-['›']">{n}</li>)}
+                  </ul>
+                )}
               </div>
-              <p className="mt-1 text-xs text-zinc-500">Type a domain and press Discover: Veyra visits the site politely and fills in the fields below. Review them before saving.</p>
-              {notes.length > 0 && <ul className="mt-1 list-disc pl-5 text-xs text-zinc-600 dark:text-zinc-400">{notes.map((n) => <li key={n}>{n}</li>)}</ul>}
-            </div>
-            <label className="text-sm">Name<input required className={inputCls} value={form.name} onChange={set("name")} /></label>
-            <label className="text-sm">Pricing URL<input className={inputCls} value={form.pricing_url ?? ""} onChange={set("pricing_url")} /></label>
-            <label className="text-sm">News query<input className={inputCls} value={form.news_query ?? ""} onChange={set("news_query")} /></label>
-            <label className="text-sm">Careers provider
-              <select className={inputCls} value={form.careers_provider ?? ""} onChange={set("careers_provider")}>
-                <option value="">none</option><option value="greenhouse">Greenhouse</option><option value="lever">Lever</option>
-              </select>
-            </label>
-            <label className="text-sm">Careers board token<input className={inputCls} value={form.careers_token ?? ""} onChange={set("careers_token")} /></label>
-            <label className="text-sm md:col-span-2">Product / changelog URLs (space separated)<input className={inputCls} value={urls} onChange={(e) => setUrls(e.target.value)} /></label>
-            <label className="text-sm md:col-span-2">Blog / changelog RSS or Atom feeds (space separated, optional)<input className={inputCls} value={feeds} onChange={(e) => setFeeds(e.target.value)} placeholder="https://example.com/blog/feed.xml" /></label>
-            {formErr && <div className="md:col-span-2"><ErrorBox error={formErr} /></div>}
-            <div className="md:col-span-2"><button className={btnCls} type="submit">Save</button></div>
-          </form>
-        </Card>
-      )}
-      {list && list.length === 0 && <Empty>No competitors yet. Run <code>python -m app.db.seed</code> or add one.</Empty>}
-      <div className="grid gap-3">
-        {list?.map((c) => (
-          <Card key={c.id} title={c.name} right={<button onClick={() => remove(c)} className="text-xs text-red-600 hover:underline">Delete</button>}>
-            <div className="mb-2 text-sm text-zinc-500">
-              <a className="hover:underline" href={`https://${c.domain}`} target="_blank" rel="noreferrer">{c.domain}</a>
-              {c.careers_provider && <> · jobs via {c.careers_provider}/{c.careers_token}</>}
-            </div>
-            <ul className="space-y-1 text-sm">
-              {c.sources.map((s) => (
-                <li key={s.id} className="flex min-w-0 items-center gap-2">
-                  <Badge tone={TONE[s.source_type]}>{s.source_type === "early_signal" ? "Early Signal" : s.source_type}</Badge>
-                  <a href={s.url} target="_blank" rel="noreferrer" className="truncate text-zinc-600 hover:underline dark:text-zinc-400">{s.url}</a>
-                  <span className="ml-auto shrink-0 text-xs text-zinc-400">{s.last_checked_at ? new Date(s.last_checked_at).toLocaleString() : "never checked"}</span>
-                </li>
-              ))}
-            </ul>
+              <Field label="Name *"><input required className={inputCls} value={form.name} onChange={set("name")} /></Field>
+              <Field label="Pricing URL"><input className={inputCls} value={form.pricing_url ?? ""} onChange={set("pricing_url")} /></Field>
+              <Field label="News query"><input className={inputCls} value={form.news_query ?? ""} onChange={set("news_query")} /></Field>
+              <Field label="Careers provider">
+                <select className={inputCls} value={form.careers_provider ?? ""} onChange={set("careers_provider")}>
+                  <option value="">none</option><option value="greenhouse">Greenhouse</option><option value="lever">Lever</option>
+                </select>
+              </Field>
+              <Field label="Careers board token"><input className={inputCls} value={form.careers_token ?? ""} onChange={set("careers_token")} /></Field>
+              <Field label="Product / changelog URLs" wide hint="Space separated."><input className={inputCls} value={urls} onChange={(e) => setUrls(e.target.value)} /></Field>
+              <Field label="Blog / changelog RSS or Atom feeds" wide hint="Space separated, optional.">
+                <input className={inputCls} value={feeds} onChange={(e) => setFeeds(e.target.value)} placeholder="https://example.com/blog/feed.xml" />
+              </Field>
+              {formErr && <div className="md:col-span-2"><ErrorBox error={formErr} /></div>}
+              <div className="flex gap-2 border-t border-line pt-4 md:col-span-2"><button className={btnCls} type="submit">Save</button></div>
+            </form>
           </Card>
+        </div>
+      )}
+      {list && list.length === 0 && <Empty>No competitors yet. Run <code className="font-mono text-ink-2">python -m app.db.seed</code> or add one.</Empty>}
+      {!list && !err && <div className="grid gap-3">{[0, 1].map((i) => <div key={i} className="rounded-[4px] border border-line bg-surface p-4"><Skeleton className="h-4 w-40" /><Skeleton className="mt-4 h-3 w-full" /><Skeleton className="mt-2 h-3 w-5/6" /></div>)}</div>}
+      <div className="grid gap-4">
+        {list?.map((c, i) => (
+          <div key={c.id} className="anim-rise" style={{ "--i": i } as CSSProperties}>
+            <Card
+              title={<span className="flex items-center gap-2.5 normal-case tracking-normal">
+                <span aria-hidden="true" className="flex h-7 w-7 items-center justify-center rounded-[3px] bg-ink font-mono text-sm font-semibold text-bg">{c.name.slice(0, 1).toUpperCase()}</span>
+                <span className="font-sans text-base font-semibold text-ink">{c.name}</span>
+              </span>}
+              right={<button onClick={() => remove(c)} className="inline-flex h-8 cursor-pointer items-center gap-1 rounded-[3px] px-2 font-mono text-xs font-medium hover:bg-[var(--bad-bg)]" style={{ color: "var(--bad)" }}>
+                <IconTrash />Delete<span className="sr-only"> {c.name}</span>
+              </button>}
+              flush
+            >
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-line bg-surface-2 px-4 py-2 font-mono text-xs text-ink-2">
+                <a className="inline-flex items-center gap-1 hover:text-accent hover:underline" href={`https://${c.domain}`} target="_blank" rel="noreferrer">{c.domain}<IconExternal /></a>
+                {c.careers_provider && <span className="text-muted">jobs via {c.careers_provider}/{c.careers_token}</span>}
+                <span className="tnum ml-auto text-muted">{c.sources.length} sources</span>
+              </div>
+              <ul className="divide-y divide-line">
+                {c.sources.map((s) => (
+                  <li key={s.id} className="grid min-w-0 grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-0.5 px-4 py-2 text-sm sm:grid-cols-[7.5rem_minmax(0,1fr)_auto]">
+                    <span>{s.source_type === "early_signal" ? <ProvenanceTag kind="early" /> : <Badge tone={TONE[s.source_type]}>{s.source_type}</Badge>}</span>
+                    <a href={s.url} target="_blank" rel="noreferrer" title={s.url} className="truncate font-mono text-xs text-ink-2 hover:text-accent hover:underline">{s.url}</a>
+                    <span className="tnum col-start-2 font-mono text-[11px] text-muted sm:col-start-auto sm:text-right">{s.last_checked_at ? new Date(s.last_checked_at).toLocaleString() : "never checked"}</span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          </div>
         ))}
       </div>
     </div>
