@@ -1,8 +1,9 @@
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { CSSProperties, FormEvent, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Line, LineChart, ResponsiveContainer, Tooltip, YAxis } from "recharts";
+import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, YAxis } from "recharts";
 import { api, ChatReply, Timeline } from "../api/client";
-import { Badge, ErrorBox, btnCls, inputCls } from "../components/ui";
+import { Badge, ConfidenceGauge, ErrorBox, PageHeader, Skeleton, btnCls, inputCls } from "../components/ui";
+import { IconArrowRight, IconChevron, IconExternal, IconSend, IconTool, VeyraMark } from "../components/icons";
 import Markdown from "../components/Markdown";
 
 interface Turn { role: "user" | "assistant"; content: string; reply?: ChatReply }
@@ -17,31 +18,34 @@ const SUGGESTIONS = [
 function MiniTimeline({ t }: { t: Timeline }) {
   const data = t.points.map((p, i) => ({ i, c: p.confidence, reason: p.reason, ts: p.ts }));
   return (
-    <div className="rounded border border-zinc-200 p-2 dark:border-zinc-800">
-      <div className="flex items-center gap-2 text-xs">
+    <div className="min-w-0 rounded-[3px] border border-line bg-surface-2 p-3">
+      <div className="flex items-center gap-2">
         <Badge>{t.competitor}</Badge>
-        <Link className="min-w-0 flex-1 truncate hover:underline" to={`/hypotheses?id=${t.hypothesis_id}`}>H{t.hypothesis_id}: {t.statement}</Link>
-        <span className="tabular-nums text-zinc-500">{t.band} {t.confidence.toFixed(2)}</span>
+        <Link className="min-w-0 flex-1 truncate text-xs font-medium text-ink hover:underline" to={`/hypotheses?id=${t.hypothesis_id}`} title={t.statement}>
+          <span className="font-mono text-accent">H{t.hypothesis_id}</span> {t.statement}
+        </Link>
+        <span className="tnum shrink-0 font-mono text-xs font-semibold text-ink">{t.band} {t.confidence.toFixed(2)}</span>
       </div>
       {data.length > 1 ? (
-        <div className="mt-1 h-20">
+        <div className="mt-2 h-20">
           <ResponsiveContainer>
             <LineChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
               <YAxis domain={[0, 1]} hide />
-              <Tooltip content={({ active, payload }) => {
+              <ReferenceLine y={0.7} stroke="var(--chart-ink)" strokeOpacity={0.4} strokeDasharray="3 3" />
+              <Tooltip cursor={{ stroke: "var(--chart-ink)", strokeDasharray: "2 2" }} content={({ active, payload }) => {
                 const p = active && payload?.[0]?.payload;
                 return p ? (
-                  <div className="max-w-xs rounded border border-zinc-200 bg-white p-1.5 text-xs shadow dark:border-zinc-700 dark:bg-zinc-900">
-                    <b className="tabular-nums">{p.c.toFixed(2)}</b> · {new Date(p.ts).toLocaleDateString()}<div className="text-zinc-500">{p.reason}</div>
+                  <div className="max-w-xs rounded-[3px] border border-line-strong bg-surface p-2 text-xs shadow-lg">
+                    <b className="tnum font-mono text-ink">{p.c.toFixed(2)}</b> <span className="font-mono text-muted">· {new Date(p.ts).toLocaleDateString()}</span><div className="mt-0.5 text-ink-2">{p.reason}</div>
                   </div>) : null;
               }} />
-              <Line type="linear" dataKey="c" stroke="var(--series-1)" strokeWidth={2} isAnimationActive={false}
-                dot={{ r: 3, fill: "var(--series-1)", stroke: "var(--chart-surface)", strokeWidth: 1.5 }} />
+              <Line type="linear" dataKey="c" stroke="var(--series-1)" strokeWidth={1.5} isAnimationActive={false}
+                dot={{ r: 2.5, fill: "var(--series-1)", stroke: "var(--chart-surface)", strokeWidth: 1 }} />
             </LineChart>
           </ResponsiveContainer>
         </div>
-      ) : <p className="mt-1 text-xs text-zinc-500">One belief update so far.</p>}
-      <p className="text-[11px] text-zinc-500">Belief timeline from the database (uncalibrated heuristic score).</p>
+      ) : <div className="mt-3"><ConfidenceGauge value={t.confidence} /><p className="mt-2 text-xs text-muted">One belief update so far.</p></div>}
+      <p className="mt-1.5 font-mono text-[10.5px] text-muted">Belief timeline from the database (uncalibrated heuristic score). Dashed = likely threshold.</p>
     </div>
   );
 }
@@ -49,28 +53,45 @@ function MiniTimeline({ t }: { t: Timeline }) {
 function Reply({ r }: { r: ChatReply }) {
   const [showTools, setShowTools] = useState(false);
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <Markdown text={r.answer} />
       {r.timelines.length > 0 && <div className="grid gap-2 md:grid-cols-2">{r.timelines.map((t) => <MiniTimeline key={t.hypothesis_id} t={t} />)}</div>}
       {r.citations.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {r.citations.map((c) => c.kind === "hypothesis" ? (
-            <Link key={`h${c.id}`} to={c.url} className="rounded border border-zinc-300 px-2 py-0.5 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800" title={c.label}>H{c.id} · {c.status}</Link>
-          ) : (
-            <a key={`s${c.id}`} href={c.url} target="_blank" rel="noreferrer" className="max-w-xs truncate rounded border border-zinc-300 px-2 py-0.5 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800" title={c.label}>
-              S{c.id} · {c.competitor} · {c.label} ↗
-            </a>
-          ))}
+        <div className="border-t border-line pt-3">
+          <div className="mb-2 font-mono text-[11px] uppercase tracking-[0.1em] text-muted">Sources ({r.citations.length})</div>
+          <div className="flex flex-wrap gap-1.5">
+            {r.citations.map((c) => c.kind === "hypothesis" ? (
+              <Link key={`h${c.id}`} to={c.url} title={c.label}
+                className="inline-flex h-7 items-center gap-1.5 rounded-[3px] border border-line-strong bg-surface px-2 font-mono text-xs text-ink-2 transition-colors hover:border-accent hover:text-ink">
+                <span className="font-semibold text-accent">H{c.id}</span>{c.status}<IconArrowRight size={11} />
+              </Link>
+            ) : (
+              <a key={`s${c.id}`} href={c.url} target="_blank" rel="noreferrer" title={c.label}
+                className="inline-flex h-7 max-w-xs items-center gap-1.5 rounded-[3px] border border-line-strong bg-surface px-2 font-mono text-xs text-ink-2 transition-colors hover:border-accent hover:text-ink">
+                <span className="font-semibold text-ink">S{c.id}</span><span className="min-w-0 truncate">{c.competitor} · {c.label}</span><IconExternal className="shrink-0" />
+                <span className="sr-only">(opens in a new tab)</span>
+              </a>
+            ))}
+          </div>
         </div>
       )}
-      <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+      <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] text-muted">
         {r.citations.length === 0 && !r.error && <Badge tone="warn">no sources cited</Badge>}
         {!!r.dropped_citations && <span>{r.dropped_citations} citation(s) dropped (not returned by a tool)</span>}
-        {r.tool_calls.length > 0 && <button className="hover:underline" onClick={() => setShowTools((s) => !s)}>{showTools ? "hide" : "show"} {r.tool_calls.length} tool call(s)</button>}
+        {r.tool_calls.length > 0 && (
+          <button className="inline-flex h-6 cursor-pointer items-center gap-1 uppercase tracking-[0.06em] hover:text-ink" aria-expanded={showTools} onClick={() => setShowTools((s) => !s)}>
+            <span className={`transition-transform ${showTools ? "rotate-90" : ""}`}><IconChevron size={12} /></span>{showTools ? "hide" : "show"} {r.tool_calls.length} tool call(s)
+          </button>
+        )}
       </div>
       {showTools && (
-        <ul className="space-y-1 font-mono text-xs">
-          {r.tool_calls.map((c, i) => <li key={i} className="rounded bg-zinc-50 p-1.5 dark:bg-zinc-950">{c.tool}({JSON.stringify(c.args)})<div className="whitespace-pre-line text-zinc-500">{c.result}</div></li>)}
+        <ul className="anim-route space-y-1.5 border-l border-line pl-3 font-mono text-xs">
+          {r.tool_calls.map((c, i) => (
+            <li key={i} className="rounded-[3px] bg-sunken p-2 [overflow-wrap:anywhere]">
+              <span className="inline-flex items-center gap-1 font-medium text-accent"><IconTool size={12} />{c.tool}</span><span className="text-ink-2">({JSON.stringify(c.args)})</span>
+              <div className="mt-1 whitespace-pre-line text-muted">{c.result}</div>
+            </li>
+          ))}
         </ul>
       )}
     </div>
@@ -107,31 +128,48 @@ export default function Ask() {
   const submit = (e: FormEvent) => { e.preventDefault(); ask(q); };
 
   return (
-    <div className="flex min-h-[calc(100vh-6rem)] flex-col gap-4">
-      <div>
-        <h1 className="text-xl font-semibold">Ask Veyra</h1>
-        <p className="text-xs text-zinc-500">Answers come only from Veyra's database through read-only tools, with sources. Each question uses a few LLM calls.</p>
-      </div>
-      <div className="flex-1 space-y-4">
+    <div className="flex min-h-[calc(100dvh-12.5rem)] flex-col md:min-h-[calc(100dvh-6rem)]">
+      <PageHeader index="05" title="Ask Veyra"
+        description="Answers come only from Veyra's database through read-only tools, with sources. Each question uses a few LLM calls." />
+      <div className="mx-auto w-full max-w-3xl flex-1 space-y-5">
         {turns.length === 0 && (
-          <div className="grid gap-2 sm:grid-cols-2">
-            {SUGGESTIONS.map((s) => (
-              <button key={s} onClick={() => ask(s)} className="rounded-lg border border-zinc-200 bg-white p-3 text-left text-sm hover:border-zinc-400 dark:border-zinc-800 dark:bg-zinc-900">{s}</button>
-            ))}
+          <div>
+            <div className="mb-2 font-mono text-[11px] uppercase tracking-[0.12em] text-muted">Try asking</div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {SUGGESTIONS.map((s, i) => (
+                <button key={s} onClick={() => ask(s)} style={{ "--i": i } as CSSProperties}
+                  className="anim-rise group flex cursor-pointer items-start justify-between gap-3 rounded-[4px] border border-line bg-surface p-3.5 text-left text-sm text-ink transition-colors hover:border-line-strong hover:bg-surface-2">
+                  <span>{s}</span><span className="mt-0.5 text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-accent"><IconArrowRight /></span>
+                </button>
+              ))}
+            </div>
           </div>
         )}
         {turns.map((t, i) => t.role === "user" ? (
-          <div key={i} className="ml-auto w-fit max-w-[85%] rounded-lg bg-zinc-900 px-3 py-2 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900">{t.content}</div>
+          <div key={i} className="anim-rise ml-auto w-fit max-w-[85%] rounded-[4px] bg-ink px-3.5 py-2.5 text-sm leading-relaxed text-bg [overflow-wrap:anywhere]">{t.content}</div>
         ) : (
-          <div key={i} className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">{t.reply && <Reply r={t.reply} />}</div>
+          <div key={i} className="anim-rise flex gap-3">
+            <span className="mt-0.5 hidden shrink-0 sm:block"><VeyraMark size={24} /></span>
+            <div className="min-w-0 flex-1 rounded-[4px] border border-line bg-surface p-4">{t.reply && <Reply r={t.reply} />}</div>
+          </div>
         ))}
-        {busy && <div className="text-sm text-zinc-500">Looking through the database…</div>}
+        {busy && (
+          <div className="flex gap-3" role="status">
+            <span className="mt-0.5 hidden shrink-0 sm:block"><VeyraMark size={24} /></span>
+            <div className="min-w-0 flex-1 rounded-[4px] border border-line bg-surface p-4">
+              <div className="flex items-center gap-2 font-mono text-xs text-ink-2"><span className="anim-pulse inline-block h-2 w-2 rounded-full bg-accent" aria-hidden="true" />Looking through the database…</div>
+              <Skeleton className="mt-3 h-3 w-full" /><Skeleton className="mt-2 h-3 w-4/5" />
+            </div>
+          </div>
+        )}
         {err && <ErrorBox error={err} />}
         <div ref={end} />
       </div>
-      <form onSubmit={submit} className="sticky bottom-0 flex gap-2 bg-zinc-50 py-2 dark:bg-zinc-950">
-        <input className={inputCls} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask about a competitor, a hypothesis, or a change over time" aria-label="Question" />
-        <button className={btnCls} disabled={busy || !q.trim()} type="submit">Ask</button>
+      <form onSubmit={submit} className="sticky bottom-0 z-10 -mx-4 -mb-16 mt-6 border-t border-line bg-bg/95 px-4 py-3 backdrop-blur md:-mx-8 md:px-8">
+        <div className="mx-auto flex max-w-3xl gap-2">
+          <input className={inputCls} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask about a competitor, a hypothesis, or a change over time" aria-label="Question" />
+          <button className={btnCls} disabled={busy || !q.trim()} type="submit"><IconSend size={14} /><span>Ask</span></button>
+        </div>
       </form>
     </div>
   );
