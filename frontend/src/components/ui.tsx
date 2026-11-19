@@ -132,7 +132,7 @@ export function PriorityTag({ priority }: { priority: string }) {
    Track marked at the real status thresholds; hatched fill = heuristic, not a calibrated probability. */
 const THRESHOLDS = [0.4, 0.7, 0.9];
 
-export function ConfidenceGauge({ value, size = "sm", label }: { value: number; size?: "sm" | "lg"; label?: string }) {
+export function ConfidenceGauge({ value, size = "sm", label, prior }: { value: number; size?: "sm" | "lg"; label?: string; prior?: number }) {
   const v = Math.max(0, Math.min(1, value));
   const lg = size === "lg";
   return (
@@ -149,14 +149,17 @@ export function ConfidenceGauge({ value, size = "sm", label }: { value: number; 
           className={`absolute w-0.5 -translate-x-1/2 rounded-full bg-ink ${lg ? "-top-1.5 -bottom-1.5" : "-top-1 -bottom-1"}`}
           style={{ left: `${v * 100}%` }}
         />
+        {prior !== undefined && (
+          <span aria-hidden="true" title={`prior ${prior.toFixed(2)}`} className="absolute -bottom-2.5 h-0 w-0 -translate-x-1/2 border-x-[4px] border-b-[5px] border-x-transparent border-b-muted"
+            style={{ left: `${Math.max(0, Math.min(1, prior)) * 100}%` }} />
+        )}
       </div>
       {lg && (
-        <div className="relative mt-2 h-4 font-mono text-[11px] text-muted" aria-hidden="true">
+        <div className="relative mt-3.5 h-4 font-mono text-[11px] text-muted" aria-hidden="true">
           <span className="absolute left-0">0</span>
           {THRESHOLDS.map((t) => (
             <span key={t} className="tnum absolute -translate-x-1/2" style={{ left: `${t * 100}%` }}>{t.toFixed(2).slice(1)}</span>
           ))}
-          <span className="absolute right-0">1</span>
         </div>
       )}
     </div>

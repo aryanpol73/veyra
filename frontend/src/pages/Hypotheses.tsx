@@ -1,100 +1,104 @@
-import { useMemo, useState } from "react";
+import { CSSProperties, ReactNode, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { CartesianGrid, Line, LineChart, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { api, Competitor, HypothesisDetail, HypothesisSummary } from "../api/client";
-import { Badge, Card, Empty, ErrorBox, inputCls, useLoad } from "../components/ui";
+import {
+  Badge, Card, ConfidenceGauge, ContributionBar, Empty, ErrorBox, ExtLink, Eyebrow, PageHeader, ProvenanceTag, Skeleton,
+  StanceMark, StatusTag, Tone, inputCls, useLoad,
+} from "../components/ui";
+import { IconChevron, IconTool } from "../components/icons";
 
-const STATUS_TONE = { emerging: "muted", plausible: "info", likely: "warn", confirmed: "ok", refuted: "bad", stale: "muted" } as const;
-const VERDICT_TONE: Record<string, "ok" | "bad" | "muted" | "warn"> = {
+const VERDICT_TONE: Record<string, Tone> = {
   alternative_refuted: "ok", alternative_supported: "bad", inconclusive: "muted", pending: "warn",
 };
 const fmtDate = (d: string) => new Date(d).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 const pct = (x: number) => x.toFixed(2);
 
-function ConfidenceBar({ value }: { value: number }) {
-  return (
-    <div className="h-1.5 w-full rounded-full bg-zinc-200 dark:bg-zinc-800" role="img" aria-label={`confidence ${pct(value)}`}>
-      <div className="h-1.5 rounded-full" style={{ width: `${Math.round(value * 100)}%`, background: "var(--series-1)" }} />
-    </div>
-  );
-}
-
-function ScoreChip({ h }: { h: HypothesisSummary }) {
-  return (
-    <div className="flex items-center gap-2">
-      <Badge tone={STATUS_TONE[h.status]}>{h.status}</Badge>
-      <span className="text-sm font-semibold tabular-nums">{h.band} {pct(h.confidence)}</span>
-      <span className="text-xs text-zinc-500" title="Not a validated probability until the Evaluation page shows calibration">
-        {h.score_label}
-      </span>
-    </div>
-  );
+function Meta({ k, v }: { k: string; v: ReactNode }) {
+  return <span className="whitespace-nowrap"><span className="text-muted">{k}</span> <span className="tnum text-ink-2">{v}</span></span>;
 }
 
 function BeliefChart({ d }: { d: HypothesisDetail }) {
   const data = d.belief_history.map((b, i) => ({ i, t: new Date(b.ts).getTime(), confidence: b.confidence, reason: b.reason, delta: b.delta }));
-  if (data.length < 2) return <p className="text-sm text-zinc-500">Only one belief update so far; the timeline fills in as cycles run.</p>;
+  if (data.length < 2) return <p className="text-sm text-muted">Only one belief update so far; the timeline fills in as cycles run.</p>;
   const sameDay = new Date(data[0].t).toDateString() === new Date(data[data.length - 1].t).toDateString();
   const tick = (i: number) => sameDay ? `update ${i + 1}` : new Date(data[i]?.t ?? 0).toLocaleDateString(undefined, { month: "short", day: "numeric" });
   return (
-    <div className="h-56 w-full" style={{ color: "var(--chart-ink)" }}>
-      <ResponsiveContainer>
-        <LineChart data={data} margin={{ top: 8, right: 44, bottom: 4, left: 0 }}>
-          <CartesianGrid stroke="var(--chart-grid)" strokeDasharray="0" vertical={false} />
-          <XAxis dataKey="i" tick={{ fontSize: 11, fill: "var(--chart-ink)" }} tickLine={false} axisLine={{ stroke: "var(--chart-grid)" }}
-            tickFormatter={tick} />
-          <YAxis domain={[0, 1]} ticks={[0, 0.4, 0.7, 0.9, 1]} width={36} tick={{ fontSize: 11, fill: "var(--chart-ink)" }} tickLine={false} axisLine={false} />
-          {[{ y: 0.4, l: "plausible" }, { y: 0.7, l: "likely" }, { y: 0.9, l: "confirmed" }].map((r) => (
-            <ReferenceLine key={r.y} y={r.y} stroke="var(--chart-grid)" strokeDasharray="4 4"
-              label={{ value: r.l, position: "right", fontSize: 10, fill: "var(--chart-ink)" }} />
-          ))}
-          <Tooltip
-            cursor={{ stroke: "var(--chart-ink)", strokeWidth: 1 }}
-            content={({ active, payload }) => {
-              if (!active || !payload?.length) return null;
-              const p = payload[0].payload as (typeof data)[number];
-              return (
-                <div className="max-w-xs rounded border border-zinc-200 bg-white p-2 text-xs shadow dark:border-zinc-700 dark:bg-zinc-900">
-                  <div className="font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">{pct(p.confidence)} ({p.delta >= 0 ? "+" : ""}{pct(p.delta)})</div>
-                  <div className="text-zinc-500">{new Date(p.t).toLocaleString()}</div>
-                  <div className="mt-1 text-zinc-700 dark:text-zinc-300">{p.reason}</div>
-                </div>
-              );
-            }}
-          />
-          <Line type="linear" dataKey="confidence" stroke="var(--series-1)" strokeWidth={2} isAnimationActive={false}
-            dot={{ r: 4, fill: "var(--series-1)", stroke: "var(--chart-surface)", strokeWidth: 2 }}
-            activeDot={{ r: 6, stroke: "var(--chart-surface)", strokeWidth: 2 }} />
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
+    <figure>
+      <figcaption className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[11px] text-muted">
+        <span className="inline-flex items-center gap-1.5">
+          <svg width="18" height="8" aria-hidden="true"><line x1="0" y1="4" x2="18" y2="4" stroke="var(--series-1)" strokeWidth="1.5" /><circle cx="9" cy="4" r="2.5" fill="var(--series-1)" /></svg>
+          confidence after each update (heuristic)
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <svg width="18" height="8" aria-hidden="true"><line x1="0" y1="4" x2="18" y2="4" stroke="var(--chart-ink)" strokeWidth="1" strokeDasharray="3 3" /></svg>
+          status thresholds
+        </span>
+      </figcaption>
+      <div className="h-56 w-full" style={{ color: "var(--chart-ink)" }}>
+        <ResponsiveContainer>
+          <LineChart data={data} margin={{ top: 8, right: 64, bottom: 4, left: 0 }}>
+            <ReferenceArea y1={0.7} y2={1} fill="var(--series-1)" fillOpacity={0.04} ifOverflow="hidden" />
+            <CartesianGrid stroke="var(--chart-grid)" strokeDasharray="0" vertical={false} />
+            <XAxis dataKey="i" tick={{ fontSize: 11, fill: "var(--chart-ink)", fontFamily: "var(--font-mono)" }} tickLine={false} axisLine={{ stroke: "var(--chart-grid)" }}
+              tickFormatter={tick} minTickGap={16} />
+            <YAxis domain={[0, 1]} ticks={[0, 0.4, 0.7, 0.9, 1]} width={36} tick={{ fontSize: 11, fill: "var(--chart-ink)", fontFamily: "var(--font-mono)" }} tickLine={false} axisLine={false} />
+            {[{ y: 0.4, l: "plausible" }, { y: 0.7, l: "likely" }, { y: 0.9, l: "confirmed" }].map((r) => (
+              <ReferenceLine key={r.y} y={r.y} stroke="var(--chart-ink)" strokeOpacity={0.5} strokeDasharray="3 3"
+                label={{ value: r.l, position: "right", fontSize: 10, fill: "var(--chart-ink)", fontFamily: "var(--font-mono)" }} />
+            ))}
+            <Tooltip
+              cursor={{ stroke: "var(--chart-ink)", strokeWidth: 1, strokeDasharray: "2 2" }}
+              content={({ active, payload }) => {
+                if (!active || !payload?.length) return null;
+                const p = payload[0].payload as (typeof data)[number];
+                return (
+                  <div className="max-w-xs rounded-[3px] border border-line-strong bg-surface p-2.5 text-xs shadow-lg">
+                    <div className="tnum font-mono font-semibold text-ink">{pct(p.confidence)} <span className="text-muted">({p.delta >= 0 ? "+" : ""}{pct(p.delta)})</span></div>
+                    <div className="font-mono text-[11px] text-muted">{new Date(p.t).toLocaleString()}</div>
+                    <div className="mt-1 text-ink-2">{p.reason}</div>
+                  </div>
+                );
+              }}
+            />
+            <Line type="linear" dataKey="confidence" stroke="var(--series-1)" strokeWidth={1.5} isAnimationActive={false}
+              dot={{ r: 3, fill: "var(--series-1)", stroke: "var(--chart-surface)", strokeWidth: 1.5 }}
+              activeDot={{ r: 5, stroke: "var(--chart-surface)", strokeWidth: 2 }} />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </figure>
   );
 }
 
-function EvidenceList({ items, title, empty }: { items: HypothesisDetail["evidence"]; title: string; empty: string }) {
+function EvidenceList({ items, title, empty, stance }: { items: HypothesisDetail["evidence"]; title: string; empty: string; stance: string }) {
   return (
-    <div>
-      <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-zinc-500">{title} ({items.length})</h3>
-      {items.length === 0 ? <p className="text-sm text-zinc-500">{empty}</p> : (
+    <div className="min-w-0">
+      <div className="mb-2.5 flex items-center gap-2 border-b border-line pb-2">
+        <StanceMark stance={stance} />
+        <Eyebrow className="text-ink-2">{title}</Eyebrow>
+        <span className="tnum ml-auto font-mono text-[11px] text-muted">{items.length} item{items.length === 1 ? "" : "s"}</span>
+      </div>
+      {items.length === 0 ? <p className="py-2 text-sm text-muted">{empty}</p> : (
         <ul className="space-y-2">
-          {items.map((e) => (
-            <li key={e.id} className="rounded border border-zinc-200 p-2 text-sm dark:border-zinc-800">
-              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+          {items.map((e, i) => (
+            <li key={e.id} className="anim-rise relative rounded-[3px] border border-line bg-surface-2 py-3 pl-4 pr-3" style={{ "--i": i } as CSSProperties}>
+              <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-[3px] ${e.stance === "neutral" ? "bg-line-strong" : ""}`}
+                style={e.stance !== "neutral" ? { background: `var(--${e.stance === "supports" ? "ok" : "bad"})` } : undefined} />
+              <div className="flex flex-wrap items-center gap-1.5">
                 <Badge>{e.signal.type.replace(/_/g, " ")}</Badge>
-                {e.signal.category === "early_signal" && <Badge tone="warn">Early Signal</Badge>}
-                {e.independence_weight < 1 && <Badge tone="muted" >same origin ×{e.independence_weight}</Badge>}
-                <span className="text-zinc-500">by {e.added_by} · {fmtDate(e.signal.observed_at)}</span>
-                <span className="ml-auto tabular-nums text-zinc-600 dark:text-zinc-400" title="logit contribution after decay, reliability, independence and caps">
-                  {e.contribution >= 0 ? "+" : ""}{e.contribution.toFixed(2)}
-                </span>
+                {e.signal.category === "early_signal" && <ProvenanceTag kind="early" />}
+                {e.independence_weight < 1 && <Badge tone="muted">same origin ×{e.independence_weight}</Badge>}
+                <span className="ml-auto"><ContributionBar value={e.contribution} /></span>
               </div>
-              <p className="mt-1">{e.signal.summary}</p>
-              <p className="mt-0.5 text-xs text-zinc-500">{e.rationale}</p>
-              <div className="mt-1 flex flex-wrap gap-3 text-xs text-zinc-500">
-                <a className="text-sky-700 hover:underline dark:text-sky-400" href={e.signal.evidence_url} target="_blank" rel="noreferrer">evidence ↗</a>
-                <span>relevance {e.relevance.toFixed(1)}</span>
-                <span>source reliability {e.reliability.toFixed(2)}</span>
-                <span>event confidence {e.signal.event_confidence.toFixed(2)}</span>
+              <p className="mt-2 text-sm leading-snug text-ink">{e.signal.summary}</p>
+              <p className="mt-1 text-xs leading-relaxed text-muted">{e.rationale}</p>
+              <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-line pt-2 font-mono text-[11px]">
+                <ExtLink href={e.signal.evidence_url}>evidence</ExtLink>
+                <Meta k="relevance" v={e.relevance.toFixed(1)} />
+                <Meta k="source reliability" v={e.reliability.toFixed(2)} />
+                <Meta k="event confidence" v={e.signal.event_confidence.toFixed(2)} />
+                <span className="text-muted">by {e.added_by} · {fmtDate(e.signal.observed_at)}</span>
               </div>
             </li>
           ))}
@@ -104,56 +108,98 @@ function EvidenceList({ items, title, empty }: { items: HypothesisDetail["eviden
   );
 }
 
+function DetailSkeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="rounded-[4px] border border-line bg-surface p-5"><Skeleton className="h-3 w-1/2" /><Skeleton className="mt-3 h-6 w-full" /><Skeleton className="mt-2 h-6 w-2/3" /><Skeleton className="mt-6 h-3 w-full" /></div>
+      <div className="rounded-[4px] border border-line bg-surface p-5"><Skeleton className="h-48 w-full" /></div>
+    </div>
+  );
+}
+
 function Detail({ id }: { id: number }) {
   const [d, err] = useLoad(() => api.get<HypothesisDetail>(`/hypotheses/${id}`), [id]);
   if (err) return <ErrorBox error={err} />;
-  if (!d) return <Card><p className="text-sm text-zinc-500">Loading…</p></Card>;
+  if (!d) return <DetailSkeleton />;
   const support = d.evidence.filter((e) => e.stance === "supports");
   const against = d.evidence.filter((e) => e.stance === "contradicts");
   const neutral = d.evidence.filter((e) => e.stance === "neutral");
   return (
-    <div className="space-y-3">
-      <Card>
-        <div className="text-xs text-zinc-500">{d.competitor} · {d.category} · prior {pct(d.prior)} · created {fmtDate(d.created_at)}
-          {d.replay && <> · <Badge tone="synthetic">Replay</Badge></>}{d.synthetic && <> · <Badge tone="synthetic">Synthetic</Badge></>}</div>
-        <h2 className="mt-1 text-lg font-semibold leading-snug">{d.statement}</h2>
-        <div className="mt-2"><ScoreChip h={d} /></div>
-        <div className="mt-2"><ConfidenceBar value={d.confidence} /></div>
-      </Card>
+    <div key={d.id} className="anim-route space-y-4">
+      {/* dossier header */}
+      <section className="relative overflow-hidden rounded-[4px] border border-line bg-surface">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-line px-5 py-2.5 font-mono text-[11px]">
+          <span className="font-semibold text-accent">H{d.id}</span>
+          <span className="text-ink-2">{d.competitor}</span>
+          <span className="text-muted">{d.category}</span>
+          <Meta k="prior" v={pct(d.prior)} />
+          <span className="text-muted">created {fmtDate(d.created_at)}</span>
+          {(d.replay || d.synthetic) && <span className="flex gap-1.5">{d.replay && <ProvenanceTag kind="replay" />}{d.synthetic && <ProvenanceTag kind="synthetic" />}</span>}
+        </div>
+        <div className="grid gap-6 p-5 md:grid-cols-[minmax(0,1fr)_15rem]">
+          <div className="min-w-0">
+            <h2 className="text-xl font-semibold leading-snug tracking-[-0.01em] text-ink md:text-[22px]">{d.statement}</h2>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <StatusTag status={d.status} />
+              <span className="font-mono text-[11px] text-muted" title="Not a validated probability until the Evaluation page shows calibration">{d.score_label}</span>
+            </div>
+          </div>
+          <div className="min-w-0 md:border-l md:border-line md:pl-6">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted">Confidence</span>
+              <span className="font-mono text-[11px] uppercase text-ink-2">{d.band}</span>
+            </div>
+            <div className="tnum mt-1 font-mono text-[40px] font-semibold leading-none tracking-[-0.03em] text-ink">{pct(d.confidence)}</div>
+            <div className="mt-3"><ConfidenceGauge value={d.confidence} prior={d.prior} size="lg" /></div>
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10.5px] text-muted">
+              <span className="inline-flex items-center gap-1.5 whitespace-nowrap"><span className="inline-block h-0 w-0 border-x-[4px] border-b-[5px] border-x-transparent border-b-muted" aria-hidden="true" />prior {pct(d.prior)}</span>
+              <span className="inline-flex items-center gap-1.5 whitespace-nowrap"><span className="hatch inline-block h-2 w-3" aria-hidden="true" />uncalibrated</span>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <Card title="Belief over time">
         <BeliefChart d={d} />
-        <details className="mt-2 text-xs text-zinc-500">
-          <summary className="cursor-pointer">Table view</summary>
-          <table className="mt-1 w-full text-left">
-            <thead><tr><th className="py-0.5">when</th><th>conf</th><th>Δ</th><th>reason</th></tr></thead>
-            <tbody>{d.belief_history.map((b, i) => (
-              <tr key={i} className="border-t border-zinc-200 dark:border-zinc-800">
-                <td className="py-0.5 pr-2 whitespace-nowrap">{new Date(b.ts).toLocaleString()}</td>
-                <td className="pr-2 tabular-nums">{pct(b.confidence)}</td><td className="pr-2 tabular-nums">{b.delta >= 0 ? "+" : ""}{pct(b.delta)}</td><td>{b.reason}</td>
-              </tr>))}</tbody>
-          </table>
+        <details className="group mt-3 border-t border-line pt-2.5 text-xs">
+          <summary className="inline-flex cursor-pointer items-center gap-1 font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-muted hover:text-ink"><span className="chev transition-transform"><IconChevron size={12} /></span>Table view</summary>
+          <div className="scroll-thin mt-2 overflow-x-auto">
+            <table className="w-full min-w-[520px] text-left">
+              <thead className="font-mono text-[11px] text-muted"><tr><th className="py-1 pr-3 font-medium">when</th><th className="pr-3 font-medium">conf</th><th className="pr-3 font-medium">Δ</th><th className="font-medium">reason</th></tr></thead>
+              <tbody>{d.belief_history.map((b, i) => (
+                <tr key={i} className="border-t border-line align-top text-ink-2">
+                  <td className="tnum whitespace-nowrap py-1.5 pr-3 font-mono">{new Date(b.ts).toLocaleString()}</td>
+                  <td className="tnum pr-3 font-mono text-ink">{pct(b.confidence)}</td><td className="tnum pr-3 font-mono">{b.delta >= 0 ? "+" : ""}{pct(b.delta)}</td><td className="py-1.5">{b.reason}</td>
+                </tr>))}</tbody>
+            </table>
+          </div>
         </details>
       </Card>
 
-      <Card title="Evidence">
-        <div className="grid gap-4 lg:grid-cols-2">
-          <EvidenceList items={support} title="Supports" empty="No supporting evidence." />
-          <EvidenceList items={against} title="Against" empty="No contradicting evidence found yet. The investigator looks for it each cycle." />
+      <Card title="Evidence ledger" right={<span className="font-mono text-[11px] text-muted">contribution = logit after decay, reliability, independence, caps</span>}>
+        <div className="grid gap-5 xl:grid-cols-2">
+          <EvidenceList items={support} title="Supports" stance="supports" empty="No supporting evidence." />
+          <EvidenceList items={against} title="Against" stance="contradicts" empty="No contradicting evidence found yet. The investigator looks for it each cycle." />
         </div>
-        {neutral.length > 0 && <div className="mt-4"><EvidenceList items={neutral} title="Neutral / context" empty="" /></div>}
+        {neutral.length > 0 && <div className="mt-5"><EvidenceList items={neutral} title="Neutral / context" stance="neutral" empty="" /></div>}
       </Card>
 
       <Card title={`Skeptic challenges (${d.challenges.length})`}>
         {d.challenges.length === 0 ? (
-          <p className="text-sm text-zinc-500">Not challenged yet. The skeptic runs once a hypothesis reaches 0.60, before it can be raised to "likely" or alerted.</p>
+          <p className="text-sm text-muted">Not challenged yet. The skeptic runs once a hypothesis reaches 0.60, before it can be raised to "likely" or alerted.</p>
         ) : (
           <ol className="space-y-3">
-            {d.challenges.map((c) => (
-              <li key={c.id} className="text-sm">
-                <div className="flex flex-wrap items-center gap-2"><Badge tone={VERDICT_TONE[c.verdict] ?? "muted"}>{c.verdict.replace(/_/g, " ")}</Badge><span className="font-medium">{c.alternative}</span></div>
-                <div className="mt-1 text-xs text-zinc-500"><span className="font-semibold">Test:</span> {c.discriminating_test}</div>
-                {c.test_result && <div className="mt-0.5 whitespace-pre-line text-xs text-zinc-600 dark:text-zinc-400"><span className="font-semibold">Result:</span> {c.test_result}</div>}
+            {d.challenges.map((c, i) => (
+              <li key={c.id} className="grid gap-x-4 gap-y-2 rounded-[3px] border border-line bg-surface-2 p-3.5 sm:grid-cols-[auto_minmax(0,1fr)]">
+                <div className="flex items-start gap-2 sm:flex-col">
+                  <span className="tnum font-mono text-[11px] text-muted">Alt {String(i + 1).padStart(2, "0")}</span>
+                  <Badge tone={VERDICT_TONE[c.verdict] ?? "muted"}>{c.verdict.replace(/_/g, " ")}</Badge>
+                </div>
+                <div className="min-w-0 space-y-1.5 text-sm">
+                  <p className="font-medium leading-snug text-ink">{c.alternative}</p>
+                  <p className="text-xs leading-relaxed text-ink-2"><span className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted">Test</span> {c.discriminating_test}</p>
+                  {c.test_result && <p className="whitespace-pre-line text-xs leading-relaxed text-ink-2"><span className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted">Result</span> {c.test_result}</p>}
+                </div>
               </li>
             ))}
           </ol>
@@ -161,25 +207,33 @@ function Detail({ id }: { id: number }) {
       </Card>
 
       <Card title={`Investigations (${d.investigations.length})`}>
-        {d.investigations.length === 0 ? <p className="text-sm text-zinc-500">No investigation yet. One runs when confidence sits in the uncertain band (0.35–0.80).</p> : (
-          <div className="space-y-4">
+        {d.investigations.length === 0 ? <p className="text-sm text-muted">No investigation yet. One runs when confidence sits in the uncertain band (0.35–0.80).</p> : (
+          <div className="space-y-6">
             {d.investigations.map((inv) => (
-              <div key={inv.id} className="text-sm">
-                <div className="text-xs text-zinc-500">#{inv.id} · {new Date(inv.started_at).toLocaleString()} · {inv.actions.length} tool call(s) · {inv.tokens} tokens · stop: <span className="font-medium text-zinc-700 dark:text-zinc-300">{inv.stop_reason}</span></div>
-                {inv.plan.length > 0 && <ol className="mt-1 list-decimal pl-5 text-zinc-700 dark:text-zinc-300">{inv.plan.map((p, i) => <li key={i}>{p}</li>)}</ol>}
-                <ul className="mt-2 space-y-1 font-mono text-xs">
+              <div key={inv.id} className="min-w-0 text-sm">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] text-muted">
+                  <span className="font-semibold text-ink">#{inv.id}</span>
+                  <span>{new Date(inv.started_at).toLocaleString()}</span>
+                  <span>{inv.actions.length} tool call(s)</span>
+                  <span className="tnum">{inv.tokens} tokens</span>
+                  <span>stop: <span className="font-medium text-ink-2">{inv.stop_reason}</span></span>
+                </div>
+                {inv.plan.length > 0 && <ol className="mt-2 list-decimal space-y-0.5 pl-5 text-ink-2 marker:font-mono marker:text-muted">{inv.plan.map((p, i) => <li key={i}>{p}</li>)}</ol>}
+                <ul className="mt-3 space-y-1.5 border-l border-line pl-3 font-mono text-xs">
                   {inv.actions.map((a, i) => (
-                    <li key={i} className="rounded bg-zinc-50 p-1.5 dark:bg-zinc-950">
-                      <span className="text-zinc-900 dark:text-zinc-100">{a.tool}</span>({JSON.stringify(a.args)})
-                      <div className="mt-0.5 whitespace-pre-line text-zinc-500">{a.result.slice(0, 400)}</div>
+                    <li key={i} className="min-w-0 rounded-[3px] bg-sunken p-2 [overflow-wrap:anywhere]">
+                      <span className="inline-flex items-center gap-1 font-medium text-accent"><IconTool size={12} />{a.tool}</span><span className="text-ink-2">({JSON.stringify(a.args)})</span>
+                      <div className="mt-1 whitespace-pre-line text-muted">{a.result.slice(0, 400)}</div>
                     </li>
                   ))}
                 </ul>
                 {inv.findings.length > 0 && (
-                  <ul className="mt-2 space-y-0.5 text-xs">
+                  <ul className="mt-3 space-y-1.5 text-xs">
                     {inv.findings.map((f, i) => (
-                      <li key={i}>{f.dropped ? <Badge tone="bad">dropped</Badge> : <Badge tone="info">{f.stance}</Badge>} {f.summary} {f.why && <span className="text-zinc-500">({f.why})</span>}
-                        {f.url && !f.dropped && <> <a className="text-sky-700 hover:underline dark:text-sky-400" href={f.url} target="_blank" rel="noreferrer">↗</a></>}</li>
+                      <li key={i} className="flex flex-wrap items-baseline gap-1.5 text-ink-2">
+                        {f.dropped ? <Badge tone="bad">dropped</Badge> : <Badge tone="info">{f.stance}</Badge>} <span className="min-w-0">{f.summary}</span> {f.why && <span className="text-muted">({f.why})</span>}
+                        {f.url && !f.dropped && <ExtLink href={f.url}>source</ExtLink>}
+                      </li>
                     ))}
                   </ul>
                 )}
@@ -192,16 +246,16 @@ function Detail({ id }: { id: number }) {
       <Card title="Predictions">
         {d.predictions.length === 0 ? (
           <>
-            <p className="text-sm text-zinc-500">Falsifiable predictions are registered once confidence reaches 0.60. Proposed tests:</p>
-            <ul className="mt-1 list-disc pl-5 text-sm">{d.testable_predictions.map((p, i) => <li key={i}>{p.claim} <span className="text-zinc-500">(within {p.horizon_days} days)</span></li>)}</ul>
+            <p className="text-sm text-muted">Falsifiable predictions are registered once confidence reaches 0.60. Proposed tests:</p>
+            <ul className="mt-2 space-y-1 pl-5 text-sm text-ink-2 [&>li]:list-[square] marker:text-muted">{d.testable_predictions.map((p, i) => <li key={i}>{p.claim} <span className="font-mono text-[11px] text-muted">(within {p.horizon_days} days)</span></li>)}</ul>
           </>
         ) : (
-          <ul className="space-y-1 text-sm">
+          <ul className="divide-y divide-line text-sm">
             {d.predictions.map((p) => (
-              <li key={p.id} className="flex flex-wrap items-center gap-2">
+              <li key={p.id} className="flex flex-wrap items-center gap-2 py-2 first:pt-0 last:pb-0">
                 <Badge tone={p.outcome === "hit" ? "ok" : p.outcome === "miss" ? "bad" : "muted"}>{p.outcome}</Badge>
-                <span>{p.claim}</span>
-                <span className="text-xs text-zinc-500">by {fmtDate(p.resolve_by)} · made at {pct(p.confidence_at_creation)}</span>
+                <span className="min-w-0 flex-1 text-ink">{p.claim}</span>
+                <span className="tnum font-mono text-[11px] text-muted">by {fmtDate(p.resolve_by)} · made at {pct(p.confidence_at_creation)}</span>
               </li>
             ))}
           </ul>
@@ -220,36 +274,68 @@ export default function Hypotheses() {
   const open = useMemo(() => list?.filter((h) => !["refuted", "stale"].includes(h.status)) ?? [], [list]);
   const closed = useMemo(() => list?.filter((h) => ["refuted", "stale"].includes(h.status)) ?? [], [list]);
 
-  const item = (h: HypothesisSummary) => (
-    <button key={h.id} onClick={() => setParams({ id: String(h.id) })}
-      className={`w-full rounded-lg border p-3 text-left transition-colors ${h.id === selected ? "border-zinc-900 bg-white dark:border-zinc-300 dark:bg-zinc-900" : "border-zinc-200 bg-white hover:border-zinc-400 dark:border-zinc-800 dark:bg-zinc-900"}`}>
-      <div className="flex items-center justify-between gap-2 text-xs text-zinc-500">
-        <span>{h.competitor} · {h.category}{h.replay && <> <Badge tone="synthetic">Replay</Badge></>}{h.synthetic && <> <Badge tone="synthetic">Synthetic</Badge></>}</span>
-        <span>{h.evidence_for} for · {h.evidence_against} against</span>
-      </div>
-      <div className="mt-1 text-sm font-medium leading-snug">{h.statement}</div>
-      <div className="mt-2 flex items-center gap-2"><Badge tone={STATUS_TONE[h.status]}>{h.status}</Badge><span className="text-xs tabular-nums">{pct(h.confidence)}</span><div className="flex-1"><ConfidenceBar value={h.confidence} /></div></div>
-    </button>
-  );
+  const item = (h: HypothesisSummary, i: number) => {
+    const active = h.id === selected;
+    return (
+      <li key={h.id} className="anim-rise" style={{ "--i": Math.min(i, 12) } as CSSProperties}>
+        <button onClick={() => setParams({ id: String(h.id) })} aria-current={active ? "true" : undefined}
+          className={`relative w-full cursor-pointer rounded-[4px] border p-3.5 text-left transition-colors ${active ? "border-line-strong bg-surface shadow-[0_1px_0_var(--line)]" : "border-line bg-surface hover:border-line-strong hover:bg-surface-2"}`}>
+          <span aria-hidden="true" className={`absolute inset-y-3 left-0 w-[3px] rounded-r bg-accent transition-transform duration-200 ${active ? "scale-y-100" : "scale-y-0"}`} />
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px]">
+            <span className={active ? "font-semibold text-accent" : "text-muted"}>H{h.id}</span>
+            <span className="text-ink-2">{h.competitor}</span>
+            <span className="text-muted">{h.category}</span>
+            {h.replay && <ProvenanceTag kind="replay" />}{h.synthetic && <ProvenanceTag kind="synthetic" />}
+          </div>
+          <div className="mt-1.5 text-sm font-medium leading-snug text-ink">{h.statement}</div>
+          <div className="mt-3 flex items-center gap-2.5">
+            <StatusTag status={h.status} />
+            <div className="min-w-0 flex-1"><ConfidenceGauge value={h.confidence} /></div>
+            <span className="tnum font-mono text-sm font-semibold text-ink">{pct(h.confidence)}</span>
+          </div>
+          <div className="mt-2 flex gap-3 font-mono text-[11px] text-muted">
+            <span><span className="font-semibold" style={{ color: "var(--ok)" }}>+</span> {h.evidence_for} for</span>
+            <span><span className="font-semibold" style={{ color: "var(--bad)" }}>−</span> {h.evidence_against} against</span>
+          </div>
+        </button>
+      </li>
+    );
+  };
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold">Hypotheses</h1>
-        <select className={`${inputCls} w-auto`} value={comp} onChange={(e) => { setComp(e.target.value); setParams({}); }} aria-label="Competitor">
-          <option value="">All competitors</option>
-          {competitors?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-      </div>
-      <p className="text-xs text-zinc-500">Scores are an uncalibrated heuristic (prior + independence-weighted evidence + skeptic verdicts), not validated probabilities.</p>
+    <div className="space-y-5">
+      <PageHeader
+        index="02"
+        title="Hypotheses"
+        description={<>Scores are an <b className="font-semibold text-ink-2">uncalibrated heuristic</b> (prior + independence-weighted evidence + skeptic verdicts), not validated probabilities.</>}
+        actions={
+          <label className="flex items-center gap-2">
+            <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-muted">Competitor</span>
+            <select className={`${inputCls} w-auto min-w-44`} value={comp} onChange={(e) => { setComp(e.target.value); setParams({}); }}>
+              <option value="">All competitors</option>
+              {competitors?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </label>
+        }
+      />
       {err && <ErrorBox error={err} />}
+      {!list && !err && (
+        <div className="grid gap-5 lg:grid-cols-[22rem_minmax(0,1fr)]">
+          <div className="space-y-2">{[0, 1, 2, 3].map((i) => <div key={i} className="rounded-[4px] border border-line bg-surface p-3.5"><Skeleton className="h-3 w-1/2" /><Skeleton className="mt-2.5 h-4 w-full" /><Skeleton className="mt-3 h-2 w-full" /></div>)}</div>
+          <DetailSkeleton />
+        </div>
+      )}
       {list && list.length === 0 && <Empty>No hypotheses yet. Run a cycle with an LLM key configured; the strategist proposes them from signals.</Empty>}
       {list && list.length > 0 && (
-        <div className="grid gap-4 lg:grid-cols-[22rem_1fr]">
-          <div className="space-y-2">
-            {open.map(item)}
-            {closed.length > 0 && <><div className="pt-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Closed</div>{closed.map(item)}</>}
-          </div>
+        <div className="grid gap-5 lg:grid-cols-[22rem_minmax(0,1fr)]">
+          <nav aria-label="Hypotheses" className="lg:sticky lg:top-6 lg:max-h-[calc(100dvh-3rem)] lg:self-start lg:overflow-y-auto lg:pr-1 scroll-thin">
+            <div className="mb-2 flex items-center justify-between font-mono text-[11px] uppercase tracking-[0.12em] text-muted"><span>Open</span><span className="tnum">{open.length}</span></div>
+            <ul className="space-y-2">{open.map(item)}</ul>
+            {closed.length > 0 && <>
+              <div className="mb-2 mt-5 flex items-center justify-between font-mono text-[11px] uppercase tracking-[0.12em] text-muted"><span>Closed</span><span className="tnum">{closed.length}</span></div>
+              <ul className="space-y-2 opacity-90">{closed.map((h, i) => item(h, open.length + i))}</ul>
+            </>}
+          </nav>
           <div className="min-w-0">{selected && <Detail id={selected} />}</div>
         </div>
       )}
