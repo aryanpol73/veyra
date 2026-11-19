@@ -11,7 +11,7 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       injectRegister: "script-defer",
-      includeAssets: ["favicon.png", "icon.svg", "apple-touch-icon.png", "theme-init.js"],
+      includeAssets: ["favicon.png", "icon.svg", "apple-touch-icon.png", "theme-init.js", "push-sw.js", "badge-96.png"],
       manifest: {
         id: "/",
         name: "Veyra: competitive intelligence",
@@ -37,6 +37,7 @@ export default defineConfig({
         ],
       },
       workbox: {
+        importScripts: ["/push-sw.js"], // Web Push + notification-click handlers
         globPatterns: ["**/*.{js,css,html,svg,png,ico}"],
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/api\//, /^\/healthz/],

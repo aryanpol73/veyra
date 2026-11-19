@@ -241,3 +241,16 @@ class AgentCursor(Base):
     last_signal_id: Mapped[int] = mapped_column(Integer, default=0)
     memory_note: Mapped[str | None] = mapped_column(Text)  # strategist's one-line note for the next cycle
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class PushSubscription(Base):
+    """A browser/device that asked for Web Push notifications (one row per device)."""
+    __tablename__ = "push_subscriptions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    endpoint: Mapped[str] = mapped_column(String(1000), unique=True)
+    p256dh: Mapped[str] = mapped_column(String(200))
+    auth: Mapped[str] = mapped_column(String(100))
+    user_agent: Mapped[str | None] = mapped_column(String(300))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    failures: Mapped[int] = mapped_column(Integer, default=0)

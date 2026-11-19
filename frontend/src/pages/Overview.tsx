@@ -1,3 +1,4 @@
+import Notifications from "../components/Notifications";
 import { CSSProperties, useState } from "react";
 import { Link } from "react-router-dom";
 import { AlertItem, api, Health, Overview as OverviewData } from "../api/client";
@@ -180,6 +181,8 @@ export default function Overview() {
           ))}
         </ul>
       </Card>
+
+      <Notifications />
 
       {health && (
         <Card title="System" right={<button className={btnCls} onClick={testLlm} disabled={pinging}>{pinging ? "Testing…" : "Test LLM"}</button>}>

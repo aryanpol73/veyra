@@ -1,4 +1,4 @@
-"""Provider-agnostic LLM client (Groq / Ollama / any OpenAI-compatible API).
+"""LLM client over the free-tier provider pool (app/llm_pool.py): Groq, Mistral, Gemini, OpenRouter, Ollama.
 
 Every structured call:  JSON mode -> Pydantic validation -> one retry with the
 validation error fed back -> otherwise log + return None (caller skips).
@@ -10,24 +10,21 @@ import contextvars
 import json
 import logging
 import re
-import threading
 import time
-from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Literal, TypeVar
 
-from openai import BadRequestError, OpenAI, RateLimitError
+from openai import (APIConnectionError, APIStatusError, APITimeoutError, AuthenticationError, BadRequestError,
+                    NotFoundError, PermissionDeniedError, RateLimitError)
 from pydantic import BaseModel, ValidationError
 
+from app import llm_pool as pool
 from app.config import get_settings
 
 log = logging.getLogger("veyra.llm")
 T = TypeVar("T", bound=BaseModel)
 Role = Literal["strong", "fast"]
-
-_client: OpenAI | None = None
-
 
 @dataclass
 class TokenBudget:
@@ -54,22 +51,10 @@ def current_budget() -> TokenBudget | None:
     return _budget.get()
 
 
-def client() -> OpenAI:
-    global _client
-    if _client is None:
-        s = get_settings()
-        _client = OpenAI(
-            base_url=s.resolved_base_url,
-            api_key=s.llm_api_key or "ollama",  # local ollama ignores the key
-            timeout=s.llm_timeout_s,
-            max_retries=5,  # Groq free tier 429s: SDK backs off using retry-after
-        )
-    return _client
-
-
 def model_for(role: Role) -> str:
-    s = get_settings()
-    return s.model_strong if role == "strong" else s.model_fast
+    """First configured endpoint for a role (for display/logging)."""
+    eps = pool.chain(role)
+    return eps[0].name if eps else "not configured"
 
 
 def _extract_json(text: str) -> str:
@@ -130,15 +115,23 @@ def complete_json(
     max_wait_s: float | None = None,
     fallback_role: Role | None = None,
 ) -> T | None:
-    """Ask for JSON matching `schema`. Validate; retry once; else log and return None.
+    """Ask for JSON matching `schema` from the free-tier pool. Validate; retry once; else log and return None.
 
-    Rate limits: wait up to `max_wait_s` (default config.llm_max_wait_s; interactive callers pass ~20 s). If the
-    wait would be longer and `fallback_role` is given, switch to that model once (separate quota on Groq)."""
+    Endpoints are tried in order (app/llm_pool.py). A short rate-limit wait is waited out on the same endpoint;
+    a long one (a daily cap) rests that endpoint and moves to the next. `fallback_role` appends the other role's
+    endpoints. If every endpoint is resting, wait for the soonest only if that fits in `max_wait_s`
+    (default config.llm_max_wait_s; interactive callers pass ~20 s)."""
     from app.db.session import log_agent_run  # local import avoids cycles
 
     budget = current_budget()
     if budget is not None and budget.exhausted:
         log.warning("llm %s skipped: run token budget exhausted (%s/%s)", kind, budget.used, budget.limit)
+        return None
+    primary = pool.chain(role)
+    extra = [e for e in pool.chain(fallback_role) if e not in primary] if fallback_role else []
+    eps = primary + extra
+    if not eps:
+        log.warning("llm %s skipped: no LLM endpoint configured (add a key to .env)", kind)
         return None
     sys_prompt = (
         f"{system}\n\nRespond with ONLY a JSON object matching this JSON Schema. "
@@ -148,87 +141,89 @@ def complete_json(
     messages = [{"role": "system", "content": sys_prompt}, {"role": "user", "content": user}]
     started = datetime.now(timezone.utc)
     tokens_in = tokens_out = 0
-    last_err = ""
-    raw = ""
-    attempt = waits = 0  # rate-limit waits do NOT use up the one validation retry
+    last_err, raw, used = "", "", None
+    attempt = 0  # validation/format retries (one), shared across endpoints; rate limits never consume it
     limit_wait = get_settings().llm_max_wait_s if max_wait_s is None else max_wait_s
-    role_requested = role
-    while attempt < 2:
+    short_wait = min(limit_wait, 30.0)
+    hops = 0
+    while attempt < 2 and hops < 40:
+        hops += 1
+        ep = next((e for e in eps if pool.available(e)), None)
+        if ep is None:
+            soon = pool.soonest_available(eps)
+            if soon and soon[1] <= limit_wait:
+                log.warning("llm %s: all %d endpoints resting; waiting %.0fs for %s", kind, len(eps), soon[1], soon[0].name)
+                time.sleep(soon[1] + 1)
+                continue
+            last_err = "every LLM endpoint is rate-limited or unavailable"
+            LAST_RATE_LIMIT.update(kind=kind, wait_s=soon[1] if soon else None, at=time.time())
+            break
+        used = ep
         try:
             prompt_est = sum(len(m["content"]) for m in messages) // 3  # conservative chars->tokens
-            max_out = get_settings().llm_max_tokens
-            if _tpm_limit():  # Groq counts max_tokens toward the per-minute limit: keep prompt + reservation under it
-                max_out = max(800, min(max_out, int(_tpm_limit() * 0.95) - prompt_est))
-            throttle(prompt_est + max_out)
-            t0 = time.perf_counter()
-            extra = {}
-            if "gpt-oss" in model_for(role) and get_settings().llm_provider == "groq":
-                extra["reasoning_effort"] = "medium" if role == "strong" else "low"
-            resp = client().chat.completions.create(
-                model=model_for(role),
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_out,
-                response_format={"type": "json_object"},
-                extra_body=extra or None,
-            )
-            log.debug("llm %s %.1fs", kind, time.perf_counter() - t0)
+            max_out = pool.max_output(ep, prompt_est)
+            pool.throttle(ep, prompt_est + max_out)
+            kwargs = dict(model=ep.model, messages=messages, temperature=temperature, max_tokens=max_out,
+                          extra_body=ep.extra_body(role))
+            if ep.json_mode:
+                kwargs["response_format"] = {"type": "json_object"}
+            resp = pool.client_for(ep).chat.completions.create(**kwargs)
             if resp.usage:
-                record_usage((resp.usage.prompt_tokens or 0) + (resp.usage.completion_tokens or 0))
+                n = (resp.usage.prompt_tokens or 0) + (resp.usage.completion_tokens or 0)
+                pool.record_usage(ep, n)
                 tokens_in += resp.usage.prompt_tokens or 0
                 tokens_out += resp.usage.completion_tokens or 0
                 if budget is not None:
-                    budget.used += (resp.usage.prompt_tokens or 0) + (resp.usage.completion_tokens or 0)
+                    budget.used += n
                     budget.calls += 1
-            raw = unmask(resp.choices[0].message.content or "")
+            raw = unmask((resp.choices[0].message.content or "") if resp.choices else "")
             parsed = schema.model_validate_json(_wrap_bare_list(_extract_json(raw), schema))
-            log_agent_run(kind, started, {"user": user[:4000], **({"fell_back_from": role_requested} if role != role_requested else {})},
-                          parsed.model_dump(mode="json"), tokens_in=tokens_in, tokens_out=tokens_out, model=model_for(role))
+            meta = {"user": user[:4000]}
+            if ep is not eps[0]:
+                meta["failed_over_to"] = ep.name
+            log_agent_run(kind, started, meta, parsed.model_dump(mode="json"),
+                          tokens_in=tokens_in, tokens_out=tokens_out, model=ep.name)
             return parsed
         except RateLimitError as e:
-            # Daily (TPD) limits come back as 429 with "try again in 9m58s": wait it out instead of degrading results.
             wait = _retry_after_s(str(e))
-            waits += 1
-            if (wait is None or wait > limit_wait) and fallback_role and role != fallback_role:
-                log.warning("llm %s: %s rate-limited (%.0fs); falling back to %s", kind, role, wait or -1, fallback_role)
-                role, waits = fallback_role, 0
-                continue
-            if wait is None or wait > limit_wait or waits > 8:
-                last_err = f"RateLimitError: {str(e)[:300]}"
-                LAST_RATE_LIMIT.update(kind=kind, wait_s=wait, at=time.time())
-                break
-            log.warning("llm %s rate-limited (%s); waiting %.0fs", kind, "daily" if "per day" in str(e) else "minute", wait)
-            time.sleep(wait + 2)
-            last_err = "rate limited; retried after wait"
+            if wait is not None and wait <= short_wait and "per day" not in str(e):
+                log.info("llm %s: %s per-minute limit; waiting %.0fs", kind, ep.name, wait)
+                time.sleep(wait + 1)
+            else:  # daily cap or unknown: rest this endpoint, the next one takes over
+                pool.cool_down(ep, wait if wait is not None else 3600, "daily cap" if "per day" in str(e) else "rate limited")
+            last_err = f"RateLimitError on {ep.name}"
+            continue
+        except (AuthenticationError, PermissionDeniedError, NotFoundError) as e:
+            pool.cool_down(ep, 6 * 3600, f"{type(e).__name__}: check the key/model ({str(e)[:120]})")
+            last_err = f"{type(e).__name__} on {ep.name}"
             continue
         except BadRequestError as e:
-            # Tool-trained models (gpt-oss) sometimes emit a native function call instead of JSON; Groq rejects it.
-            # ...or produces malformed JSON, which Groq's JSON mode rejects server-side ("Failed to validate JSON").
-            msg = str(e)
-            translated = _translate_native_call(e, schema) if "tool_use_failed" in msg else None
-            if translated is not None:  # the model's intent is unambiguous: use it instead of re-asking
-                raw = json.dumps(translated)
-                try:
-                    parsed = schema.model_validate(translated)
-                    log_agent_run(kind, started, {"user": user[:4000], "translated_native_tool_call": True},
-                                  parsed.model_dump(mode="json"), tokens_in=tokens_in, tokens_out=tokens_out, model=model_for(role))
-                    return parsed
-                except ValidationError:
-                    pass
-            retryable = any(x in msg for x in ("tool_use_failed", "Failed to validate JSON", "json_validate_failed",
-                                                 "output_parse_failed", "Parsing failed"))
-            if not retryable or attempt == 1:
-                last_err = f"BadRequestError: {e}"
-                break
-            if "tool_use_failed" in msg:
-                last_err = "model attempted a native tool call"
-                messages += [{"role": "user", "content": "You cannot call functions. Reply with the JSON object only; "
-                              "put a tool name in the `action` field and its arguments in `args`."}]
-            else:
-                last_err = "provider rejected malformed JSON"
-                messages += [{"role": "user", "content": "Your previous reply was not valid JSON. Reply with one valid "
-                              "JSON object only: double-quoted keys and strings, no comments, no trailing commas."}]
-            attempt += 1
+            action, parsed, last_err = _bad_request(e, ep, schema, messages, attempt)
+            if parsed is not None:
+                log_agent_run(kind, started, {"user": user[:4000], "translated_native_tool_call": True},
+                              parsed.model_dump(mode="json"), tokens_in=tokens_in, tokens_out=tokens_out, model=ep.name)
+                return parsed
+            if action == "retry_same":
+                continue
+            if action == "retry_counted":
+                attempt += 1
+                continue
+            break
+        except APIStatusError as e:
+            if e.status_code == 402:  # e.g. Ollama Cloud without credits
+                pool.cool_down(ep, 6 * 3600, "needs paid credits (402)")
+                last_err = f"402 on {ep.name}"
+                continue
+            if e.status_code >= 500:
+                pool.cool_down(ep, 120, f"provider error {e.status_code}")
+                last_err = f"{e.status_code} on {ep.name}"
+                continue
+            last_err = f"{type(e).__name__}: {str(e)[:300]}"
+            break
+        except (APIConnectionError, APITimeoutError) as e:
+            pool.cool_down(ep, 60, f"unreachable: {type(e).__name__}")
+            last_err = f"{type(e).__name__} on {ep.name}"
+            continue
         except ValidationError as e:
             last_err = f"validation: {e}"
             messages += [
@@ -236,26 +231,42 @@ def complete_json(
                 {"role": "user", "content": f"Your JSON failed validation:\n{e}\nReturn corrected JSON only."},
             ]
             attempt += 1
-        except Exception as e:  # network / provider errors: no point retrying the same prompt twice
+        except Exception as e:  # unexpected: don't hammer, report
             last_err = f"{type(e).__name__}: {e}"
             break
     log.warning("llm %s failed: %s", kind, last_err)
     log_agent_run(kind, started, {"user": user[:4000]}, {"raw": raw[:4000]},
-                  tokens_in=tokens_in, tokens_out=tokens_out, error=last_err, model=model_for(role))
+                  tokens_in=tokens_in, tokens_out=tokens_out, error=last_err, model=used.name if used else None)
     return None
 
 
+def _bad_request(e: BadRequestError, ep, schema, messages: list, attempt: int):
+    """-> (action, translated_result_or_None, last_err). action: done | retry_same | retry_counted | fail."""
+    msg = str(e)
+    if "tool_use_failed" in msg:  # gpt-oss emitted a native function call; Groq rejected it
+        translated = _translate_native_call(e, schema)
+        if translated is not None:
+            try:
+                return "done", schema.model_validate(translated), ""
+            except ValidationError:
+                pass
+    if ep.json_mode and "response_format" in msg:  # provider/model lacks JSON mode: rely on the prompt instead
+        ep.json_mode = False
+        return "retry_same", None, f"{ep.name} rejected response_format; retrying without it"
+    retryable = any(x in msg for x in ("tool_use_failed", "Failed to validate JSON", "json_validate_failed",
+                                       "output_parse_failed", "Parsing failed"))
+    if not retryable or attempt == 1:
+        return "fail", None, f"BadRequestError: {msg[:300]}"
+    if "tool_use_failed" in msg:
+        messages += [{"role": "user", "content": "You cannot call functions. Reply with the JSON object only; "
+                      "put a tool name in the `action` field and its arguments in `args`."}]
+        return "retry_counted", None, "model attempted a native tool call"
+    messages += [{"role": "user", "content": "Your previous reply was not valid JSON. Reply with one valid "
+                  "JSON object only: double-quoted keys and strings, no comments, no trailing commas."}]
+    return "retry_counted", None, "provider rejected malformed JSON"
+
+
 LAST_RATE_LIMIT: dict = {}  # last call that gave up on a rate limit (for user-facing messages)
-
-
-# ---------------- rate limiting (client-side; Groq free tier = 8k tokens/min/model) ----------------
-_usage: deque[tuple[float, int]] = deque()
-_usage_lock = threading.Lock()
-
-
-def _tpm_limit() -> int:
-    s = get_settings()
-    return s.llm_tpm_limit or (8000 if s.llm_provider == "groq" else 0)
 
 
 def _retry_after_s(msg: str) -> float | None:
@@ -268,30 +279,6 @@ def _retry_after_s(msg: str) -> float | None:
         return None
     h, mnt, sec = (float(x) if x else 0.0 for x in m.groups())
     return h * 3600 + mnt * 60 + sec
-
-
-def record_usage(tokens: int) -> None:
-    with _usage_lock:
-        _usage.append((time.monotonic(), tokens))
-
-
-def throttle(estimate: int) -> None:
-    """Block until the last 60 s of usage + this call's estimate fits under the TPM limit."""
-    limit = _tpm_limit()
-    if not limit:
-        return
-    estimate = min(estimate, int(limit * 0.95))
-    while True:
-        with _usage_lock:
-            cutoff = time.monotonic() - 60
-            while _usage and _usage[0][0] < cutoff:
-                _usage.popleft()
-            used = sum(t for _, t in _usage)
-            wait = 0.0 if used + estimate <= limit * 0.95 or not _usage else _usage[0][0] - cutoff + 0.5
-        if wait <= 0:
-            return
-        log.info("throttling %.1fs to stay under %d tokens/min", wait, limit)
-        time.sleep(wait)
 
 
 # ---------------- contamination control: name masking ----------------
@@ -321,14 +308,18 @@ def unmask(text: str) -> str:
 
 
 def ping() -> dict:
-    """Tiny live check used by /health?llm=1."""
-    s = get_settings()
-    if not s.llm_configured:
-        return {"ok": False, "error": "LLM not configured (set LLM_PROVIDER / LLM_API_KEY in .env)"}
-    try:
-        r = client().chat.completions.create(
-            model=s.model_fast, messages=[{"role": "user", "content": "Reply with: ok"}], max_tokens=200
-        )
-        return {"ok": True, "reply": (r.choices[0].message.content or "").strip()[:20]}
-    except Exception as e:
-        return {"ok": False, "error": f"{type(e).__name__}: {str(e)[:200]}"}
+    """Live check for /health?llm_check=true: the first endpoint that answers."""
+    fast = pool.chain("fast")
+    eps = fast + [e for e in pool.chain("strong") if e not in fast]
+    if not eps:
+        return {"ok": False, "error": "no LLM key configured: add GROQ_API_KEY, MISTRAL_API_KEY or GEMINI_API_KEY to .env"}
+    errors = []
+    for ep in eps:
+        try:
+            r = pool.client_for(ep).chat.completions.create(
+                model=ep.model, messages=[{"role": "user", "content": "Reply with: ok"}], max_tokens=200)
+            reply = (r.choices[0].message.content or "") if r.choices else ""
+            return {"ok": True, "endpoint": ep.name, "reply": reply.strip()[:20]}
+        except Exception as e:  # noqa: BLE001
+            errors.append(f"{ep.name}: {type(e).__name__}")
+    return {"ok": False, "error": "; ".join(errors)[:300]}

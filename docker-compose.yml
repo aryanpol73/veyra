@@ -1,5 +1,6 @@
 # docker compose up -d --build     ->  http://localhost:8000
-# Requires in .env: LLM_API_KEY, VEYRA_ADMIN_PASSWORD (10+ chars), VEYRA_SECRET_KEY (32+ random chars).
+# Requires in .env: at least one LLM key (GROQ_API_KEY / MISTRAL_API_KEY / GEMINI_API_KEY ...),
+# VEYRA_ADMIN_PASSWORD (10+ chars) and VEYRA_SECRET_KEY (32+ random chars).
 services:
   veyra:
     build: .
@@ -13,6 +14,9 @@ services:
       # Browsers only send Secure cookies over HTTPS (localhost counts as secure). For plain-HTTP access from
       # another device on your LAN, set VEYRA_COOKIE_SECURE=false in .env; behind an HTTPS proxy keep it true.
       VEYRA_COOKIE_SECURE: ${VEYRA_COOKIE_SECURE:-true}
+      # Check competitors automatically so push alerts arrive without anyone pressing "Run cycle now".
+      SCHEDULER_ENABLED: ${SCHEDULER_ENABLED:-true}
+      CYCLE_INTERVAL_MIN: ${CYCLE_INTERVAL_MIN:-360}
     ports:
       - "${VEYRA_PORT:-8000}:8000"
     volumes:

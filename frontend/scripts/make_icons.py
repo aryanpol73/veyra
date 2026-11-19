@@ -47,4 +47,14 @@ for size in (192, 512):
 mark(512, 0.78, False).save(OUT / "pwa-maskable-512.png")  # content inside the 80% safe zone
 mark(180, 0.9, False).convert("RGB").save(OUT / "apple-touch-icon.png")
 mark(64, 1.0, True).save(OUT / "favicon.png")
+# Android status-bar badge: white silhouette on transparent (the OS tints it)
+n = 96 * S
+badge = Image.new("RGBA", (n, n), (0, 0, 0, 0))
+bd = ImageDraw.Draw(badge)
+c = n / 2
+for r, w in ((n * 0.44, int(n * 0.08)), (n * 0.26, int(n * 0.06))):
+    bd.ellipse([c - r, c - r, c + r, c + r], outline=(255, 255, 255, 255), width=w)
+bd.pieslice([c - n * 0.40, c - n * 0.40, c + n * 0.40, c + n * 0.40], -90, -30, fill=(255, 255, 255, 255))
+bd.ellipse([c - n * 0.07, c - n * 0.07, c + n * 0.07, c + n * 0.07], fill=(255, 255, 255, 255))
+badge.resize((96, 96), Image.LANCZOS).save(OUT / "badge-96.png")
 print("icons written to", OUT)

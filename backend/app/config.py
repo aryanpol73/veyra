@@ -54,6 +54,15 @@ class Settings(BaseSettings):
     llm_strong: str = ""  # strategist / skeptic / chat / reporter
     llm_fast: str = ""  # classification / stance labeling
     llm_timeout_s: float = 60.0
+    # free-tier pool (see app/llm_pool.py): each key is optional, more keys = more free capacity
+    groq_api_key: str = ""
+    mistral_api_key: str = ""
+    gemini_api_key: str = ""
+    openrouter_api_key: str = ""
+    ollama_api_key: str = ""
+    ollama_local: bool = False
+    llm_strong_chain: str = ""  # e.g. "groq:openai/gpt-oss-120b,mistral:mistral-medium-latest"
+    llm_fast_chain: str = ""
     llm_tpm_limit: int = 0  # client-side tokens/minute throttle; 0 = auto (8000 for groq free tier)
     llm_max_wait_s: float = 2700  # wait up to 45 min on a provider rate limit (e.g. Groq daily cap) before failing
     llm_max_tokens: int = 4096  # reasoning models (gpt-oss) spend part of this on hidden reasoning
@@ -124,16 +133,23 @@ class Settings(BaseSettings):
 
     @property
     def model_strong(self) -> str:
-        return self.llm_strong or self.preset["strong"]
+        from app.llm_pool import chain
+
+        eps = chain("strong")
+        return eps[0].name if eps else (self.llm_strong or self.preset["strong"])
 
     @property
     def model_fast(self) -> str:
-        return self.llm_fast or self.preset["fast"]
+        from app.llm_pool import chain
+
+        eps = chain("fast")
+        return eps[0].name if eps else (self.llm_fast or self.preset["fast"])
 
     @property
     def llm_configured(self) -> bool:
-        needs_key = self.llm_provider != "ollama_local"
-        return bool(self.resolved_base_url and self.model_strong and (self.llm_api_key or not needs_key))
+        from app.llm_pool import chain  # local import: llm_pool imports config
+
+        return bool(chain("strong") or chain("fast"))
 
     @property
     def user_agent(self) -> str:

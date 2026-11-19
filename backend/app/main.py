@@ -6,7 +6,7 @@ import re
 from contextlib import asynccontextmanager
 from datetime import datetime
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select, text
@@ -521,3 +521,61 @@ def discover_competitor(domain: str):
     if not re.fullmatch(r"[a-z0-9.-]+\.[a-z]{2,}", normalize_domain(domain)):
         raise HTTPException(422, "give a domain like example.com")
     return to_dict(discover(domain))
+
+
+# ---------- web push ----------
+class PushKeys(BaseModel):
+    p256dh: str = Field(min_length=10, max_length=200)
+    auth: str = Field(min_length=8, max_length=100)
+
+
+class PushSubIn(BaseModel):
+    endpoint: str = Field(min_length=10, max_length=1000, pattern=r"^https://")
+    keys: PushKeys
+
+
+class PushUnsubIn(BaseModel):
+    endpoint: str = Field(min_length=10, max_length=1000)
+
+
+@app.get("/push/key")
+def push_key():
+    from app.push import vapid_keys
+
+    return {"public_key": vapid_keys()[1]}
+
+
+@app.get("/push/status")
+def push_status(db: Session = Depends(get_db)):
+    from app.db.models import PushSubscription
+
+    return {"subscriptions": db.scalar(select(func.count(PushSubscription.id))) or 0,
+            "scheduler_enabled": get_settings().scheduler_enabled, "cycle_interval_min": get_settings().cycle_interval_min}
+
+
+@app.post("/push/subscribe", status_code=201)
+def push_subscribe(body: PushSubIn, request: Request, db: Session = Depends(get_db)):
+    from app.push import subscribe
+
+    subscribe(db, body.endpoint, body.keys.p256dh, body.keys.auth, request.headers.get("user-agent"))
+    db.commit()
+    return {"ok": True}
+
+
+@app.post("/push/unsubscribe")
+def push_unsubscribe(body: PushUnsubIn, db: Session = Depends(get_db)):
+    from app.push import unsubscribe
+
+    removed = unsubscribe(db, body.endpoint)
+    db.commit()
+    return {"ok": True, "removed": removed}
+
+
+@app.post("/push/test")
+def push_test(db: Session = Depends(get_db)):
+    from app.push import send_to_all
+
+    r = send_to_all(db, {"title": "Veyra test notification", "body": "Notifications are working on this device.",
+                         "url": "/", "tag": "veyra-test", "priority": "low"}, ttl=600)
+    db.commit()
+    return r

@@ -71,7 +71,7 @@ def _agents(db, comps: list[Competitor], new_ids: dict[int, list[int]]) -> None:
     from app.agents.tools import CycleBudget
 
     if not get_settings().llm_configured:
-        STATUS["agents"].append({"skipped": "no LLM configured (set LLM_API_KEY)"})
+        STATUS["agents"].append({"skipped": "no LLM configured (add GROQ_API_KEY, MISTRAL_API_KEY or GEMINI_API_KEY)"})
         return
     budget = CycleBudget(get_settings().cycle_max_fetches)
     for comp in comps:
@@ -83,6 +83,15 @@ def _agents(db, comps: list[Competitor], new_ids: dict[int, list[int]]) -> None:
             db.rollback()
             log.exception("agents failed for %s", comp.name)
             r = {"error": f"{type(e).__name__}: {e}"[:300]}
+        if r.get("alerts"):  # push only after the alert rows are committed
+            try:
+                from app.push import notify_alerts
+
+                r["push"] = notify_alerts(db, r["alerts"])
+                db.commit()
+            except Exception as e:  # noqa: BLE001 - a push failure must never fail the cycle
+                db.rollback()
+                log.warning("push delivery failed: %s", e)
         STATUS["agents"].append({"competitor": comp.name, **r})
 
 

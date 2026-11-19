@@ -51,9 +51,9 @@ and scheduling are plain Python.
 One container serves the app and API on one origin, with a login, security headers and a persistent data volume.
 
 1. Install Docker Desktop and start it.
-2. Copy `.env.example` to `.env` and set three values:
+2. Copy `.env.example` to `.env` and set at least these (more free LLM keys = more capacity, see below):
    ```ini
-   LLM_API_KEY=gsk_...
+   GROQ_API_KEY=gsk_...
    VEYRA_ADMIN_PASSWORD=choose-a-long-password      # 10+ characters; protects every page and API call
    VEYRA_SECRET_KEY=...                              # python -c "import secrets; print(secrets.token_hex(32))"
    ```
@@ -113,6 +113,59 @@ and the agents are skipped.
 
 > **Windows:** keep the repo at a short path such as `C:\Users\you\veyra`. LangGraph's `xxhash` dependency ships a DLL
 > that fails to load past the 260-character path limit. `run.py` warns when the path is long.
+
+## Free LLM capacity (no paid tier needed)
+
+No single free tier is enough for Veyra, so it uses a **pool of free models with automatic failover**
+(`backend/app/llm_pool.py`):
+- **Daily cap:** when a model hits its cap, it rests until the reset and the next one takes over.
+- **Bad key or model:** a bad key, an unknown model or a "needs credits" (402) response parks that endpoint for 6 hours.
+
+Every key is optional; add as many as you like to `.env`:
+
+| Key | Where (free) | What you get |
+|---|---|---|
+| `GROQ_API_KEY` | console.groq.com/keys | 3 models (`gpt-oss-120b`, `gpt-oss-20b`, `qwen3.8-27b`), ~200k tokens/day **each** |
+| `MISTRAL_API_KEY` | console.mistral.ai ("Experiment" plan) | large monthly allowance; phone verification; free-plan data may be used for training |
+| `GEMINI_API_KEY` | aistudio.google.com/apikey | Gemini Flash / Flash-Lite free tier |
+| `OPENROUTER_API_KEY` | openrouter.ai/keys | `:free` models, 50 requests/day |
+| `OLLAMA_LOCAL=true` | ollama.com/download | unlimited and offline on your own PC (needs a decent GPU or patience) |
+
+Check which keys work:
+
+```bash
+cd backend && .venv/Scripts/python -m app.llm_check        # Docker: docker exec veyra python -m app.llm_check
+```
+
+Free-tier limits change often, so check each provider's dashboard. The pool adapts on its own: whatever a provider
+answers, it rests, fails over or waits.
+
+## Notifications on your phone and desktop
+
+Veyra sends **Web Push** notifications when an alert fires: a hypothesis is raised to *likely* after the skeptic
+challenged it, or a critical signal arrives. Delivery goes through the browser makers' push services (Google, Apple,
+Mozilla), so a notification reaches a subscribed device **wherever it is, even with Veyra closed**. If the device is
+offline, it arrives when the device reconnects (held for up to 24 h).
+
+1. **Keep Veyra running.** Use Docker with `restart: unless-stopped`; scheduled checks run every 6 h by default
+   (`CYCLE_INTERVAL_MIN`). Alerts can only fire while the server is on.
+2. **Open Veyra over HTTPS on each device once.** Phones can't reach `localhost`, and push needs HTTPS. Free and private:
+   install [Tailscale](https://tailscale.com) on the PC and the phone, sign in to both with the same account, then on the PC run
+   ```bash
+   tailscale serve --bg 8000
+   ```
+   It prints a private `https://<pc-name>.<tailnet>.ts.net` address that only your devices can open. (Cloudflare
+   Tunnel is a free public alternative.)
+3. **Enable notifications on each device.** Open **Overview → Notifications → Enable notifications**, then **Send test
+   notification**. What each device needs:
+   - **Android:** Chrome or Edge. Installing the app is optional, but stops Chrome revoking the permission later.
+   - **iPhone/iPad (iOS 16.4+):** Safari → **Share → Add to Home Screen**, then open Veyra **from the home-screen
+     icon** and enable it there. iOS doesn't offer web push to a normal Safari tab.
+   - **Desktop:** Chrome, Edge, Firefox or Safari. It works in a tab; installing the app (the address-bar icon) keeps
+     it one click away.
+
+Each device subscribes separately. Push keys (VAPID) are created on first use and stored in the data volume. Keep the
+volume: new keys would invalidate every existing subscription.
 
 ## Using it
 
@@ -231,7 +284,7 @@ LinkedIn, review sites and social platforms are deliberately not scraped.
 ## Tests
 
 ```bash
-cd backend && .venv/Scripts/python -m pytest -q      # 84 tests, no network, no LLM
+cd backend && .venv/Scripts/python -m pytest -q      # 94 tests, no network, no LLM
 ```
 
 They cover:
@@ -285,4 +338,6 @@ data/replay/    frozen Wayback dataset (committed); veyra.db, cache/, eval/, rep
 
 **Not built yet**
 - Alert feedback is stored but not learned from.
-- No scheduler unless `SCHEDULER_ENABLED=true`; otherwise cycles run when you press **Run cycle now**.
+- Local development has no scheduler unless `SCHEDULER_ENABLED=true` (Docker enables it by default).
+- Web Push needs the server running and each device subscribed once over HTTPS (see *Notifications*). iOS supports it
+  only for the home-screen app, without images or action buttons.
