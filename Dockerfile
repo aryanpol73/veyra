@@ -27,7 +27,7 @@ COPY backend/app backend/app
 COPY data/replay data/replay
 COPY --from=web /web/dist frontend/dist
 
-RUN useradd --system --uid 10001 --home /app veyra \
+RUN useradd --uid 10001 --no-create-home --home-dir /app --shell /usr/sbin/nologin veyra \
  && mkdir -p /data && chown veyra /data
 USER veyra
 VOLUME ["/data"]
