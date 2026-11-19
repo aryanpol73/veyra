@@ -2,7 +2,7 @@ import { CSSProperties, useState } from "react";
 import { Link } from "react-router-dom";
 import { AlertItem, api, Health, Overview as OverviewData } from "../api/client";
 import {
-  Badge, Card, ConfidenceGauge, Empty, ErrorBox, ExtLink, PageHeader, PriorityTag, Skeleton, Stat, StatusTag,
+  Badge, Card, ConfidenceRing, Empty, ErrorBox, ExtLink, PageHeader, PriorityTag, Skeleton, Stat, StatusTag,
   btnCls, btnSecondaryCls, btnSmCls, useLoad,
 } from "../components/ui";
 import { IconArrowRight, IconRefresh } from "../components/icons";
@@ -104,7 +104,7 @@ export default function Overview() {
           </>
         ) : (
           [0, 1, 2, 3].map((i) => (
-            <div key={i} className="rounded-[4px] border border-line bg-surface p-4"><Skeleton className="h-3 w-20" /><Skeleton className="mt-3 h-7 w-14" /><Skeleton className="mt-2.5 h-3 w-24" /></div>
+            <div key={i} className="rounded-[12px] border border-line bg-surface p-4"><Skeleton className="h-3 w-20" /><Skeleton className="mt-3 h-7 w-14" /><Skeleton className="mt-2.5 h-3 w-24" /></div>
           ))
         )}
       </div>
@@ -116,14 +116,15 @@ export default function Overview() {
           <ul>
             {data?.top_hypotheses.map((h, i) => (
               <li key={h.id} className="anim-rise border-t border-line first:border-t-0" style={{ "--i": i } as CSSProperties}>
-                <Link to={`/hypotheses?id=${h.id}`} className="group block px-4 py-3.5 transition-colors hover:bg-surface-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <StatusTag status={h.status} />
-                    <span className="font-mono text-[11px] text-muted">{h.competitor}</span>
-                    <span className="tnum ml-auto font-mono text-sm font-semibold text-ink">{h.confidence.toFixed(2)}</span>
+                <Link to={`/hypotheses?id=${h.id}`} className="group flex items-center gap-4 px-4 py-3.5 transition-colors hover:bg-[color-mix(in_srgb,var(--accent)_5%,transparent)]">
+                  <ConfidenceRing value={h.confidence} status={h.status} size={54} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusTag status={h.status} />
+                      <span className="font-mono text-[11px] text-muted">{h.competitor}</span>
+                    </div>
+                    <div className="mt-1.5 text-sm leading-snug text-ink group-hover:underline group-hover:decoration-line-strong group-hover:underline-offset-2">{h.statement}</div>
                   </div>
-                  <div className="mt-1.5 text-sm leading-snug text-ink group-hover:underline group-hover:decoration-line-strong group-hover:underline-offset-2">{h.statement}</div>
-                  <div className="mt-2.5"><ConfidenceGauge value={h.confidence} /></div>
                 </Link>
               </li>
             ))}

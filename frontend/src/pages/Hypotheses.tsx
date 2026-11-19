@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { CartesianGrid, Line, LineChart, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { api, Competitor, HypothesisDetail, HypothesisSummary } from "../api/client";
 import {
-  Badge, Card, ConfidenceGauge, ContributionBar, Empty, ErrorBox, ExtLink, Eyebrow, PageHeader, ProvenanceTag, Skeleton,
+  Badge, Card, ConfidenceGauge, ConfidenceRing, ContributionBar, Empty, ErrorBox, ExtLink, Eyebrow, PageHeader, ProvenanceTag, Skeleton,
   StanceMark, StatusTag, Tone, inputCls, useLoad,
 } from "../components/ui";
 import { IconChevron, IconTool } from "../components/icons";
@@ -53,7 +53,7 @@ function BeliefChart({ d }: { d: HypothesisDetail }) {
                 if (!active || !payload?.length) return null;
                 const p = payload[0].payload as (typeof data)[number];
                 return (
-                  <div className="max-w-xs rounded-[3px] border border-line-strong bg-surface p-2.5 text-xs shadow-lg">
+                  <div className="max-w-xs rounded-[6px] border border-line-strong bg-surface p-2.5 text-xs shadow-lg">
                     <div className="tnum font-mono font-semibold text-ink">{pct(p.confidence)} <span className="text-muted">({p.delta >= 0 ? "+" : ""}{pct(p.delta)})</span></div>
                     <div className="font-mono text-[11px] text-muted">{new Date(p.t).toLocaleString()}</div>
                     <div className="mt-1 text-ink-2">{p.reason}</div>
@@ -82,7 +82,7 @@ function EvidenceList({ items, title, empty, stance }: { items: HypothesisDetail
       {items.length === 0 ? <p className="py-2 text-sm text-muted">{empty}</p> : (
         <ul className="space-y-2">
           {items.map((e, i) => (
-            <li key={e.id} className="anim-rise relative rounded-[3px] border border-line bg-surface-2 py-3 pl-4 pr-3" style={{ "--i": i } as CSSProperties}>
+            <li key={e.id} className="anim-rise relative rounded-[6px] border border-line bg-surface-2 py-3 pl-4 pr-3" style={{ "--i": i } as CSSProperties}>
               <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-[3px] ${e.stance === "neutral" ? "bg-line-strong" : ""}`}
                 style={e.stance !== "neutral" ? { background: `var(--${e.stance === "supports" ? "ok" : "bad"})` } : undefined} />
               <div className="flex flex-wrap items-center gap-1.5">
@@ -111,8 +111,8 @@ function EvidenceList({ items, title, empty, stance }: { items: HypothesisDetail
 function DetailSkeleton() {
   return (
     <div className="space-y-4">
-      <div className="rounded-[4px] border border-line bg-surface p-5"><Skeleton className="h-3 w-1/2" /><Skeleton className="mt-3 h-6 w-full" /><Skeleton className="mt-2 h-6 w-2/3" /><Skeleton className="mt-6 h-3 w-full" /></div>
-      <div className="rounded-[4px] border border-line bg-surface p-5"><Skeleton className="h-48 w-full" /></div>
+      <div className="rounded-[12px] border border-line bg-surface p-5"><Skeleton className="h-3 w-1/2" /><Skeleton className="mt-3 h-6 w-full" /><Skeleton className="mt-2 h-6 w-2/3" /><Skeleton className="mt-6 h-3 w-full" /></div>
+      <div className="rounded-[12px] border border-line bg-surface p-5"><Skeleton className="h-48 w-full" /></div>
     </div>
   );
 }
@@ -127,7 +127,7 @@ function Detail({ id }: { id: number }) {
   return (
     <div key={d.id} className="anim-route space-y-4">
       {/* dossier header */}
-      <section className="relative overflow-hidden rounded-[4px] border border-line bg-surface">
+      <section className="relative overflow-hidden rounded-[12px] border border-line bg-surface">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-line px-5 py-2.5 font-mono text-[11px]">
           <span className="font-semibold text-accent">H{d.id}</span>
           <span className="text-ink-2">{d.competitor}</span>
@@ -138,7 +138,7 @@ function Detail({ id }: { id: number }) {
         </div>
         <div className="grid gap-6 p-5 md:grid-cols-[minmax(0,1fr)_15rem]">
           <div className="min-w-0">
-            <h2 className="text-xl font-semibold leading-snug tracking-[-0.01em] text-ink md:text-[22px]">{d.statement}</h2>
+            <h2 className="font-display text-xl font-semibold leading-snug tracking-[-0.015em] text-ink md:text-[24px]">{d.statement}</h2>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <StatusTag status={d.status} />
               <span className="font-mono text-[11px] text-muted" title="Not a validated probability until the Evaluation page shows calibration">{d.score_label}</span>
@@ -149,8 +149,8 @@ function Detail({ id }: { id: number }) {
               <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted">Confidence</span>
               <span className="font-mono text-[11px] uppercase text-ink-2">{d.band}</span>
             </div>
-            <div className="tnum mt-1 font-mono text-[40px] font-semibold leading-none tracking-[-0.03em] text-ink">{pct(d.confidence)}</div>
-            <div className="mt-3"><ConfidenceGauge value={d.confidence} prior={d.prior} size="lg" /></div>
+            <div className="mt-3 flex justify-center"><ConfidenceRing value={d.confidence} status={d.status} size={112} /></div>
+            <div className="mt-4"><ConfidenceGauge value={d.confidence} prior={d.prior} size="lg" /></div>
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10.5px] text-muted">
               <span className="inline-flex items-center gap-1.5 whitespace-nowrap"><span className="inline-block h-0 w-0 border-x-[4px] border-b-[5px] border-x-transparent border-b-muted" aria-hidden="true" />prior {pct(d.prior)}</span>
               <span className="inline-flex items-center gap-1.5 whitespace-nowrap"><span className="hatch inline-block h-2 w-3" aria-hidden="true" />uncalibrated</span>
@@ -190,7 +190,7 @@ function Detail({ id }: { id: number }) {
         ) : (
           <ol className="space-y-3">
             {d.challenges.map((c, i) => (
-              <li key={c.id} className="grid gap-x-4 gap-y-2 rounded-[3px] border border-line bg-surface-2 p-3.5 sm:grid-cols-[auto_minmax(0,1fr)]">
+              <li key={c.id} className="grid gap-x-4 gap-y-2 rounded-[6px] border border-line bg-surface-2 p-3.5 sm:grid-cols-[auto_minmax(0,1fr)]">
                 <div className="flex items-start gap-2 sm:flex-col">
                   <span className="tnum font-mono text-[11px] text-muted">Alt {String(i + 1).padStart(2, "0")}</span>
                   <Badge tone={VERDICT_TONE[c.verdict] ?? "muted"}>{c.verdict.replace(/_/g, " ")}</Badge>
@@ -221,7 +221,7 @@ function Detail({ id }: { id: number }) {
                 {inv.plan.length > 0 && <ol className="mt-2 list-decimal space-y-0.5 pl-5 text-ink-2 marker:font-mono marker:text-muted">{inv.plan.map((p, i) => <li key={i}>{p}</li>)}</ol>}
                 <ul className="mt-3 space-y-1.5 border-l border-line pl-3 font-mono text-xs">
                   {inv.actions.map((a, i) => (
-                    <li key={i} className="min-w-0 rounded-[3px] bg-sunken p-2 [overflow-wrap:anywhere]">
+                    <li key={i} className="min-w-0 rounded-[6px] bg-sunken p-2 [overflow-wrap:anywhere]">
                       <span className="inline-flex items-center gap-1 font-medium text-accent"><IconTool size={12} />{a.tool}</span><span className="text-ink-2">({JSON.stringify(a.args)})</span>
                       <div className="mt-1 whitespace-pre-line text-muted">{a.result.slice(0, 400)}</div>
                     </li>
@@ -279,7 +279,7 @@ export default function Hypotheses() {
     return (
       <li key={h.id} className="anim-rise" style={{ "--i": Math.min(i, 12) } as CSSProperties}>
         <button onClick={() => setParams({ id: String(h.id) })} aria-current={active ? "true" : undefined}
-          className={`relative w-full cursor-pointer rounded-[4px] border p-3.5 text-left transition-colors ${active ? "border-line-strong bg-surface shadow-[0_1px_0_var(--line)]" : "border-line bg-surface hover:border-line-strong hover:bg-surface-2"}`}>
+          className={`relative w-full cursor-pointer rounded-[12px] border p-3.5 text-left transition-colors ${active ? "border-[color-mix(in_srgb,var(--accent)_45%,var(--line))] bg-surface shadow-[0_0_0_1px_color-mix(in_srgb,var(--accent)_20%,transparent),0_8px_30px_-12px_var(--glow)]" : "border-line bg-surface/90 hover:border-line-strong hover:bg-surface-2"}`}>
           <span aria-hidden="true" className={`absolute inset-y-3 left-0 w-[3px] rounded-r bg-accent transition-transform duration-200 ${active ? "scale-y-100" : "scale-y-0"}`} />
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px]">
             <span className={active ? "font-semibold text-accent" : "text-muted"}>H{h.id}</span>
@@ -287,13 +287,12 @@ export default function Hypotheses() {
             <span className="text-muted">{h.category}</span>
             {h.replay && <ProvenanceTag kind="replay" />}{h.synthetic && <ProvenanceTag kind="synthetic" />}
           </div>
-          <div className="mt-1.5 text-sm font-medium leading-snug text-ink">{h.statement}</div>
-          <div className="mt-3 flex items-center gap-2.5">
-            <StatusTag status={h.status} />
-            <div className="min-w-0 flex-1"><ConfidenceGauge value={h.confidence} /></div>
-            <span className="tnum font-mono text-sm font-semibold text-ink">{pct(h.confidence)}</span>
+          <div className="mt-2 flex items-start gap-3">
+            <ConfidenceRing value={h.confidence} status={h.status} size={50} />
+            <div className="min-w-0 flex-1 text-sm font-medium leading-snug text-ink">{h.statement}</div>
           </div>
-          <div className="mt-2 flex gap-3 font-mono text-[11px] text-muted">
+          <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] text-muted">
+            <StatusTag status={h.status} />
             <span><span className="font-semibold" style={{ color: "var(--ok)" }}>+</span> {h.evidence_for} for</span>
             <span><span className="font-semibold" style={{ color: "var(--bad)" }}>−</span> {h.evidence_against} against</span>
           </div>
@@ -321,7 +320,7 @@ export default function Hypotheses() {
       {err && <ErrorBox error={err} />}
       {!list && !err && (
         <div className="grid gap-5 lg:grid-cols-[22rem_minmax(0,1fr)]">
-          <div className="space-y-2">{[0, 1, 2, 3].map((i) => <div key={i} className="rounded-[4px] border border-line bg-surface p-3.5"><Skeleton className="h-3 w-1/2" /><Skeleton className="mt-2.5 h-4 w-full" /><Skeleton className="mt-3 h-2 w-full" /></div>)}</div>
+          <div className="space-y-2">{[0, 1, 2, 3].map((i) => <div key={i} className="rounded-[12px] border border-line bg-surface p-3.5"><Skeleton className="h-3 w-1/2" /><Skeleton className="mt-2.5 h-4 w-full" /><Skeleton className="mt-3 h-2 w-full" /></div>)}</div>
           <DetailSkeleton />
         </div>
       )}
