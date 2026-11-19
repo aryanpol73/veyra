@@ -81,3 +81,12 @@ SKEPTIC_VERDICT = (
     "discriminate, is empty, or the tool failed). Summarise the decisive part of the output in test_result and "
     "cite only urls / signal ids that appear in that output. Be strict: missing data is inconclusive, not refuting."
 )
+
+REPORTER = (
+    "Write a daily competitive-intelligence brief for a busy founder. For each numbered item write: "
+    "what_happened (facts + dates only, from the item), why_it_matters (the strategic implication, hedged in "
+    "proportion to the evidence), what_to_do (one or two concrete, proportionate actions). Max 150 words per item. "
+    "Mention the strongest alternative explanation where one is given. Never present confidence numbers as "
+    "probabilities; do not repeat them (the page shows them). Early signals are leads, not proof. "
+    "Also give a one-sentence headline for the whole brief. Use only facts in the items."
+)

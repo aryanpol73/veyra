@@ -37,7 +37,7 @@ cd backend && .venv/Scripts/python -m pytest -q
 - [x] Phase 1: collectors (pages, jobs, news/blog feeds, CT + sitemap), semantic diff, priority rules, dedup, Intelligence Feed
 - [x] Phase 2: belief engine, LangGraph agents (strategist -> investigator -> skeptic -> judge), alerts, predictions, Hypotheses page
 - [x] Phase 3: frozen Wayback dataset, leakage-safe replay, ground truth, metrics, contamination modes, Evaluation page
-- [ ] Phase 4: chat, briefs, overview
+- [x] Phase 4: Ask Veyra chat (cited, belief timelines), daily brief (Markdown + optional Slack), Overview with alert feedback
 - [ ] Phase 5: demo hardening
 
 ## How the agent core works
@@ -57,6 +57,19 @@ claims. Every LLM call and tool call is logged to `agent_runs`.
 
 Confidence = sigmoid(logit(prior) + sum(stance x relevance x reliability x event_confidence x recency x independence x K)),
 with independence 1.0 for the strongest item in an origin group and 0.2 for the rest, a per-category cap, and skeptic adjustments.
+
+## Ask Veyra and daily briefs
+
+- **Ask Veyra** (`POST /chat`): read-only tools over the database (`list_hypotheses`, `get_belief_history`,
+  `query_signals`, `compare_pricing`, `search_evidence`), at most 4 tool calls. Any competitor named in the question is
+  pre-retrieved, so a weak model still starts grounded. Answers may cite only ids a tool returned, and belief timelines
+  are drawn from `belief_history` by code, never from model text. If the strong model is rate-limited, chat waits at most
+  20 s, then falls back to the fast model. If that fails too, it returns what the tools already found.
+- **Daily brief** (`POST /reports/daily`): code picks what changed (alerts, hypotheses that moved >= 0.05, high or
+  critical signals). One LLM call writes What happened / Why it matters / What to do. Without an LLM, a template writes it.
+  The result is saved to `data/reports/brief_<date>.md`. Set `SLACK_WEBHOOK_URL` to post it to Slack.
+- **Overview**: KPIs, top hypotheses, high-priority signals, and alerts with Useful / Noise buttons (stored in
+  `user_feedback` and counted, but not learned from yet).
 
 ## Evaluation (pilot backtest)
 

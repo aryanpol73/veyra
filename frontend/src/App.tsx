@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { NavLink, Route, Routes } from "react-router-dom";
 import Overview from "./pages/Overview";
 import Competitors from "./pages/Competitors";
-import Placeholder from "./pages/Placeholder";
 import Feed from "./pages/Feed";
 import Hypotheses from "./pages/Hypotheses";
 import Evaluation from "./pages/Evaluation";
+import Ask from "./pages/Ask";
+import Reports from "./pages/Reports";
 
 const NAV = [
   { to: "/", label: "Overview" },
@@ -71,9 +72,9 @@ export default function App() {
           <Route path="/competitors" element={<Competitors />} />
           <Route path="/hypotheses" element={<Hypotheses />} />
           <Route path="/feed" element={<Feed />} />
-          <Route path="/ask" element={<Placeholder title="Ask Veyra" phase={4} what="Chat grounded in the database via tool calls, with cited sources." />} />
+          <Route path="/ask" element={<Ask />} />
           <Route path="/evaluation" element={<Evaluation />} />
-          <Route path="/reports" element={<Placeholder title="Reports" phase={4} what="Daily brief archive: what happened, why it matters, what to do." />} />
+          <Route path="/reports" element={<Reports />} />
         </Routes>
       </main>
     </div>

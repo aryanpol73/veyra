@@ -164,3 +164,13 @@ export interface EvalRun {
   };
 }
 export interface EvalStatus { running: boolean; mode: string | null; started_at: string | null; exit_code: number | null; log_tail: string }
+
+export interface Overview {
+  kpis: { competitors: number; signals_7d: number; signals_total: number; open_hypotheses: number; likely_or_confirmed: number; alerts: number; alerts_rated_useful: number; alerts_rated_noise: number };
+  top_hypotheses: HypothesisSummary[];
+  hot_signals: Signal[];
+}
+export interface Citation { kind: "signal" | "hypothesis"; id: number; competitor?: string; label: string; url: string; observed_at?: string; confidence?: number; status?: string }
+export interface Timeline { hypothesis_id: number; competitor: string; statement: string; status: string; confidence: number; band: string; points: { ts: string; confidence: number; delta: number; reason: string }[] }
+export interface ChatReply { answer: string; citations: Citation[]; timelines: Timeline[]; tool_calls: { tool: string; args: Record<string, unknown>; result: string }[]; dropped_citations?: number; error: boolean }
+export interface BriefMeta { date: string; bytes: number }

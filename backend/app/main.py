@@ -411,3 +411,94 @@ def eval_get(rid: int, db: Session = Depends(get_db)):
     if not r:
         raise HTTPException(404, "eval run not found")
     return _eval_out(r)
+
+
+# ---------- chat ----------
+class ChatIn(BaseModel):
+    question: str = Field(min_length=2, max_length=1000)
+    history: list[dict] = []
+
+
+@app.post("/chat")
+def chat(body: ChatIn, db: Session = Depends(get_db)):
+    from app.agents.chat import answer
+
+    if not get_settings().llm_configured:
+        raise HTTPException(503, "no LLM configured: set LLM_API_KEY in .env")
+    out = answer(db, body.question, body.history)
+    db.commit()  # audit rows
+    return out
+
+
+# ---------- reports ----------
+from app.reports import brief as _brief  # noqa: E402
+
+
+class BriefIn(BaseModel):
+    since_hours: int = Field(default=24, ge=1, le=24 * 30)
+    post_to_slack: bool = False
+
+
+@app.post("/reports/daily")
+def make_brief(body: BriefIn | None = None, db: Session = Depends(get_db)):
+    body = body or BriefIn()
+    from datetime import timedelta as _td, timezone as _tz
+
+    out = _brief.generate(db, since=datetime.now(_tz.utc) - _td(hours=body.since_hours), post=body.post_to_slack)
+    db.commit()
+    return out
+
+
+@app.get("/reports")
+def reports():
+    return _brief.list_reports()
+
+
+@app.get("/reports/daily")
+def latest_brief():
+    rs = _brief.list_reports()
+    if not rs:
+        raise HTTPException(404, "no brief yet: POST /reports/daily")
+    return {"date": rs[0]["date"], "markdown": _brief.read_report(rs[0]["date"])}
+
+
+@app.get("/reports/{day}")
+def get_brief(day: str):
+    import re as _re
+
+    if not _re.fullmatch(r"\d{4}-\d{2}-\d{2}", day):
+        raise HTTPException(422, "date must be YYYY-MM-DD")
+    md = _brief.read_report(day)
+    if md is None:
+        raise HTTPException(404, "no brief for that date")
+    return {"date": day, "markdown": md}
+
+
+# ---------- overview ----------
+@app.get("/overview")
+def overview(db: Session = Depends(get_db)):
+    from datetime import timedelta as _td, timezone as _tz
+
+    week = datetime.now(_tz.utc) - _td(days=7)
+    live_h = (Hypothesis.replay.is_(False)) & (Hypothesis.synthetic.is_(False))
+    live_s = (Signal.replay.is_(False)) & (Signal.synthetic.is_(False))
+    open_status = ("emerging", "plausible", "likely", "confirmed")
+    top = db.execute(select(Hypothesis, Competitor.name).join(Competitor, Competitor.id == Hypothesis.competitor_id)
+                     .where(live_h, Hypothesis.status.in_(open_status)).order_by(Hypothesis.confidence.desc()).limit(5)).all()
+    hot = db.execute(select(Signal, Competitor.name).join(Competitor, Competitor.id == Signal.competitor_id)
+                     .where(live_s, Signal.priority.in_(["critical", "high"])).order_by(Signal.observed_at.desc()).limit(6)).all()
+    fb = db.execute(select(UserFeedback.useful, func.count()).group_by(UserFeedback.useful)).all()
+    useful = dict(fb)
+    return {
+        "kpis": {
+            "competitors": db.scalar(select(func.count(Competitor.id)).where(~Competitor.name.like("SynthCo%"))),
+            "signals_7d": db.scalar(select(func.count(Signal.id)).where(live_s, Signal.detected_at >= week)),
+            "signals_total": db.scalar(select(func.count(Signal.id)).where(live_s)),
+            "open_hypotheses": db.scalar(select(func.count(Hypothesis.id)).where(live_h, Hypothesis.status.in_(open_status))),
+            "likely_or_confirmed": db.scalar(select(func.count(Hypothesis.id)).where(live_h, Hypothesis.status.in_(["likely", "confirmed"]))),
+            "alerts": db.scalar(select(func.count(Alert.id))),
+            "alerts_rated_useful": useful.get(True, 0), "alerts_rated_noise": useful.get(False, 0),
+        },
+        "top_hypotheses": [_hyp_summary(h, n, 0, 0) for h, n in top],
+        "hot_signals": [{**SignalOut.model_validate(s).model_dump(), "competitor": n} for s, n in hot],
+    }

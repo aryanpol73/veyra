@@ -95,3 +95,36 @@ def test_bare_list_is_wrapped(fake):
 
     c = fake(['[1, 2, 3]'])
     assert llm.complete_json(role="fast", system="s", user="u", schema=Many, kind="t") == Many(items=[1, 2, 3])
+
+
+def test_long_rate_limit_falls_back_to_other_model(fake, monkeypatch):
+    seen = []
+    c = fake([_rate_limit("Please try again in 5m16s"), '{"ok": true}'])
+    orig = c._create
+
+    def spy(**kw):
+        seen.append(kw["model"])
+        return orig(**kw)
+    c.chat.completions.create = spy
+    out = llm.complete_json(role="strong", system="s", user="u", schema=Out, kind="chat", max_wait_s=20, fallback_role="fast")
+    assert out == Out(ok=True) and seen == [llm.model_for("strong"), llm.model_for("fast")]
+
+
+def test_interactive_call_fails_fast_without_fallback(fake):
+    c = fake([_rate_limit("Please try again in 5m16s")])
+    assert llm.complete_json(role="strong", system="s", user="u", schema=Out, kind="chat", max_wait_s=20) is None
+    assert llm.LAST_RATE_LIMIT["wait_s"] == 316 and c.calls == 1
+
+
+def test_native_tool_call_is_translated_for_action_schemas(fake):
+    from openai import BadRequestError
+
+    from app.agents.chat import ChatStep
+
+    req = httpx.Request("POST", "https://x")
+    body = {"error": {"code": "tool_use_failed", "message": "Tool choice is none, but model called a tool",
+                      "failed_generation": '{"name": "search_evidence", "arguments": {"keywords": ["pricing"]}}'}}
+    err = BadRequestError("Error code: 400 - tool_use_failed", response=httpx.Response(400, request=req), body=body)
+    c = fake([err])
+    out = llm.complete_json(role="fast", system="s", user="u", schema=ChatStep, kind="chat")
+    assert out.action == "search_evidence" and out.args == {"keywords": ["pricing"]} and c.calls == 1

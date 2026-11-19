@@ -93,6 +93,32 @@ def _wrap_bare_list(text: str, schema: type[BaseModel]) -> str:
     return text
 
 
+def _translate_native_call(e: Exception, schema: type[BaseModel]) -> dict | None:
+    """Groq returns a rejected native tool call as failed_generation '{"name": X, "arguments": {...}}'.
+    For our action/args schemas that's the same intent: {"action": X, "args": {...}}."""
+    if not {"action", "args"} <= set(schema.model_fields):
+        return None
+    body = getattr(e, "body", None) or {}
+    err = body.get("error", body) if isinstance(body, dict) else {}
+    gen = err.get("failed_generation") if isinstance(err, dict) else None
+    if not gen:
+        m = re.search(r"'failed_generation': '(.*)'\}", str(e))
+        gen = m.group(1) if m else None
+    try:
+        call = json.loads(gen) if isinstance(gen, str) else gen
+    except (TypeError, json.JSONDecodeError):
+        return None
+    if not isinstance(call, dict) or "name" not in call:
+        return None
+    args = call.get("arguments") or call.get("parameters") or {}
+    if isinstance(args, str):
+        try:
+            args = json.loads(args)
+        except json.JSONDecodeError:
+            return None
+    return {"action": call["name"], "args": args if isinstance(args, dict) else {}}
+
+
 def complete_json(
     *,
     role: Role,
@@ -101,8 +127,13 @@ def complete_json(
     schema: type[T],
     kind: str,
     temperature: float = 0.2,
+    max_wait_s: float | None = None,
+    fallback_role: Role | None = None,
 ) -> T | None:
-    """Ask for JSON matching `schema`. Validate; retry once; else log and return None."""
+    """Ask for JSON matching `schema`. Validate; retry once; else log and return None.
+
+    Rate limits: wait up to `max_wait_s` (default config.llm_max_wait_s; interactive callers pass ~20 s). If the
+    wait would be longer and `fallback_role` is given, switch to that model once (separate quota on Groq)."""
     from app.db.session import log_agent_run  # local import avoids cycles
 
     budget = current_budget()
@@ -120,6 +151,8 @@ def complete_json(
     last_err = ""
     raw = ""
     attempt = waits = 0  # rate-limit waits do NOT use up the one validation retry
+    limit_wait = get_settings().llm_max_wait_s if max_wait_s is None else max_wait_s
+    role_requested = role
     while attempt < 2:
         try:
             prompt_est = sum(len(m["content"]) for m in messages) // 3  # conservative chars->tokens
@@ -149,15 +182,20 @@ def complete_json(
                     budget.calls += 1
             raw = unmask(resp.choices[0].message.content or "")
             parsed = schema.model_validate_json(_wrap_bare_list(_extract_json(raw), schema))
-            log_agent_run(kind, started, {"user": user[:4000]}, parsed.model_dump(mode="json"),
-                          tokens_in=tokens_in, tokens_out=tokens_out, model=model_for(role))
+            log_agent_run(kind, started, {"user": user[:4000], **({"fell_back_from": role_requested} if role != role_requested else {})},
+                          parsed.model_dump(mode="json"), tokens_in=tokens_in, tokens_out=tokens_out, model=model_for(role))
             return parsed
         except RateLimitError as e:
             # Daily (TPD) limits come back as 429 with "try again in 9m58s": wait it out instead of degrading results.
             wait = _retry_after_s(str(e))
             waits += 1
-            if wait is None or wait > get_settings().llm_max_wait_s or waits > 8:
+            if (wait is None or wait > limit_wait) and fallback_role and role != fallback_role:
+                log.warning("llm %s: %s rate-limited (%.0fs); falling back to %s", kind, role, wait or -1, fallback_role)
+                role, waits = fallback_role, 0
+                continue
+            if wait is None or wait > limit_wait or waits > 8:
                 last_err = f"RateLimitError: {str(e)[:300]}"
+                LAST_RATE_LIMIT.update(kind=kind, wait_s=wait, at=time.time())
                 break
             log.warning("llm %s rate-limited (%s); waiting %.0fs", kind, "daily" if "per day" in str(e) else "minute", wait)
             time.sleep(wait + 2)
@@ -167,7 +205,18 @@ def complete_json(
             # Tool-trained models (gpt-oss) sometimes emit a native function call instead of JSON; Groq rejects it.
             # ...or produces malformed JSON, which Groq's JSON mode rejects server-side ("Failed to validate JSON").
             msg = str(e)
-            retryable = "tool_use_failed" in msg or "Failed to validate JSON" in msg or "json_validate_failed" in msg
+            translated = _translate_native_call(e, schema) if "tool_use_failed" in msg else None
+            if translated is not None:  # the model's intent is unambiguous: use it instead of re-asking
+                raw = json.dumps(translated)
+                try:
+                    parsed = schema.model_validate(translated)
+                    log_agent_run(kind, started, {"user": user[:4000], "translated_native_tool_call": True},
+                                  parsed.model_dump(mode="json"), tokens_in=tokens_in, tokens_out=tokens_out, model=model_for(role))
+                    return parsed
+                except ValidationError:
+                    pass
+            retryable = any(x in msg for x in ("tool_use_failed", "Failed to validate JSON", "json_validate_failed",
+                                                 "output_parse_failed", "Parsing failed"))
             if not retryable or attempt == 1:
                 last_err = f"BadRequestError: {e}"
                 break
@@ -194,6 +243,9 @@ def complete_json(
     log_agent_run(kind, started, {"user": user[:4000]}, {"raw": raw[:4000]},
                   tokens_in=tokens_in, tokens_out=tokens_out, error=last_err, model=model_for(role))
     return None
+
+
+LAST_RATE_LIMIT: dict = {}  # last call that gave up on a rate limit (for user-facing messages)
 
 
 # ---------------- rate limiting (client-side; Groq free tier = 8k tokens/min/model) ----------------
