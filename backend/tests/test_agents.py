@@ -185,3 +185,23 @@ def test_lenient_contracts_still_guard_evidence():
     assert p.signal_types == ["feature_launch"]
     with pytest.raises(ValidationError):  # citations are still mandatory
         Finding(summary="it seems true", stance="supports", relevance=0.5)
+
+
+def test_skeptic_cannot_refute_on_empty_test_output(db, monkeypatch):
+    """Regression (replay run #3): alternatives were marked 'refuted' when the test returned 'no matching signals'."""
+    from app import llm
+    from app.agents import skeptic
+    from app.agents.schemas import SkepticOut, VerdictsOut
+    from app.agents.tools import ToolContext
+    from app.db.models import Competitor
+
+    h = _hyp(db)
+    alt = {"alternative": "Seasonal campaign, not a strategy shift at all", "discriminating_test":
+           {"tool": "query_signals", "args": {"keywords": ["zzz-nothing"]}, "favors_alternative_if": "few", "favors_hypothesis_if": "many"}}
+    outs = iter([SkepticOut.model_validate({"alternatives": [alt, alt]}),
+                 VerdictsOut.model_validate({"verdicts": [{"index": 0, "verdict": "alternative_refuted", "test_result": "nothing found"},
+                                                          {"index": 1, "verdict": "alternative_supported", "test_result": "nothing found"}]})])
+    monkeypatch.setattr(llm, "complete_json", lambda **kw: next(outs))
+    cs = skeptic.challenge(db, h, ToolContext(db=db, competitor=db.get(Competitor, 1)), NOW)
+    assert [c.verdict for c in cs] == ["inconclusive", "inconclusive"]
+    assert "overridden" in cs[0].test_result

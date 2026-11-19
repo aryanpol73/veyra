@@ -15,9 +15,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 BACKEND = ROOT / "backend"
 FRONTEND = ROOT / "frontend"
-VENV_PY = BACKEND / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+VENV = BACKEND / ".venv"
 NPM = shutil.which("npm")
 WINDOWS = os.name == "nt"
+
+
+def venv_python() -> Path | None:
+    """Windows CPython uses Scripts/python.exe; MSYS2/MinGW and POSIX Pythons use bin/python(.exe)."""
+    for rel in ("Scripts/python.exe", "bin/python.exe", "bin/python"):
+        if (VENV / rel).exists():
+            return VENV / rel
+    return None
 
 
 def sh(cmd: list[str], cwd: Path) -> None:
@@ -26,8 +34,16 @@ def sh(cmd: list[str], cwd: Path) -> None:
 
 
 def port_free(port: int) -> bool:
-    with socket.socket() as s:
-        return s.connect_ex(("127.0.0.1", port)) != 0
+    """Free on BOTH loopbacks: Vite binds IPv6 [::1] on Windows, uvicorn binds IPv4 127.0.0.1."""
+    for family, host in ((socket.AF_INET, "127.0.0.1"), (socket.AF_INET6, "::1")):
+        try:
+            with socket.socket(family) as s:
+                s.settimeout(0.5)
+                if s.connect_ex((host, port)) == 0:
+                    return False
+        except OSError:  # family unsupported on this machine
+            continue
+    return True
 
 
 def preflight() -> None:
@@ -35,6 +51,9 @@ def preflight() -> None:
         sys.exit(f"Python 3.11+ is required (this is {sys.version.split()[0]}). On Windows try: py -3.11 run.py")
     if NPM is None:
         sys.exit("npm was not found. Install Node.js 20+ from https://nodejs.org and re-run.")
+    if WINDOWS and ("msys" in sys.executable.lower() or "mingw" in sys.executable.lower()):
+        print(f"WARNING: {sys.executable} is an MSYS2/MinGW Python; some packages may fail to install. "
+              "The python.org installer (run with: py -3.11 run.py) is the tested setup.", flush=True)
     if WINDOWS and len(str(ROOT)) > 110:
         print(f"WARNING: this folder path is {len(str(ROOT))} characters long. A LangGraph dependency ships a DLL that fails "
               "to load past Windows' 260-character limit; if you see 'filename or extension is too long', move the repo "
@@ -44,18 +63,23 @@ def preflight() -> None:
             sys.exit(f"Port {port} is already in use (an old Veyra server?). Stop it and re-run.")
 
 
-def setup() -> None:
-    if not VENV_PY.exists():
+def setup() -> Path:
+    py = venv_python()
+    if py is None:
         sh([sys.executable, "-m", "venv", ".venv"], BACKEND)
-        sh([str(VENV_PY), "-m", "pip", "install", "--upgrade", "pip"], BACKEND)
-        sh([str(VENV_PY), "-m", "pip", "install", "-r", "requirements.txt"], BACKEND)
+        py = venv_python()
+        if py is None:
+            sys.exit(f"Created {VENV} but found no python inside it.")
+        sh([str(py), "-m", "pip", "install", "--upgrade", "pip"], BACKEND)
+        sh([str(py), "-m", "pip", "install", "-r", "requirements.txt"], BACKEND)
     if not (ROOT / ".env").exists():
         shutil.copy(ROOT / ".env.example", ROOT / ".env")
         print("Created .env from .env.example. Add your Groq key to LLM_API_KEY (the dashboard works without one, "
               "but agents and chat need it).", flush=True)
-    sh([str(VENV_PY), "-m", "app.db.seed"], BACKEND)
+    sh([str(py), "-m", "app.db.seed"], BACKEND)
     if not (FRONTEND / "node_modules").exists():
         sh([NPM, "install", "--no-fund", "--no-audit"], FRONTEND)
+    return py
 
 
 def stop(p: subprocess.Popen) -> None:
@@ -73,10 +97,10 @@ def stop(p: subprocess.Popen) -> None:
 
 def main() -> None:
     preflight()
-    setup()
+    py = setup()
     group = {} if WINDOWS else {"start_new_session": True}
     procs = [
-        subprocess.Popen([str(VENV_PY), "-m", "uvicorn", "app.main:app", "--port", "8000"], cwd=BACKEND, **group),
+        subprocess.Popen([str(py), "-m", "uvicorn", "app.main:app", "--port", "8000"], cwd=BACKEND, **group),
         subprocess.Popen([NPM, "run", "dev", "--", "--strictPort"], cwd=FRONTEND, shell=WINDOWS, **group),
     ]
     print("\nVeyra  dashboard http://localhost:5173   API docs http://127.0.0.1:8000/docs   (Ctrl+C to stop)\n", flush=True)

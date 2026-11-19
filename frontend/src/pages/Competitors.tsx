@@ -10,6 +10,7 @@ export default function Competitors() {
   const [list, err, reload] = useLoad(() => api.get<Competitor[]>("/competitors"));
   const [form, setForm] = useState<CompetitorIn>(blank);
   const [urls, setUrls] = useState("");
+  const [feeds, setFeeds] = useState("");
   const [formErr, setFormErr] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
 
@@ -20,12 +21,14 @@ export default function Competitors() {
       await api.post("/competitors", {
         ...form,
         product_urls: urls.split(/\s+/).filter(Boolean),
+        feed_urls: feeds.split(/\s+/).filter(Boolean),
         careers_provider: form.careers_provider || null,
         careers_token: form.careers_token || null,
         pricing_url: form.pricing_url || null,
       });
       setForm(blank);
       setUrls("");
+      setFeeds("");
       setOpen(false);
       reload();
     } catch (e) {
@@ -62,6 +65,7 @@ export default function Competitors() {
             </label>
             <label className="text-sm">Careers board token<input className={inputCls} value={form.careers_token ?? ""} onChange={set("careers_token")} /></label>
             <label className="text-sm md:col-span-2">Product / changelog URLs (space separated)<input className={inputCls} value={urls} onChange={(e) => setUrls(e.target.value)} /></label>
+            <label className="text-sm md:col-span-2">Blog / changelog RSS or Atom feeds (space separated, optional)<input className={inputCls} value={feeds} onChange={(e) => setFeeds(e.target.value)} placeholder="https://example.com/blog/feed.xml" /></label>
             {formErr && <div className="md:col-span-2"><ErrorBox error={formErr} /></div>}
             <div className="md:col-span-2"><button className={btnCls} type="submit">Save</button></div>
           </form>

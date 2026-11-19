@@ -223,7 +223,10 @@ export default function Hypotheses() {
   const item = (h: HypothesisSummary) => (
     <button key={h.id} onClick={() => setParams({ id: String(h.id) })}
       className={`w-full rounded-lg border p-3 text-left transition-colors ${h.id === selected ? "border-zinc-900 bg-white dark:border-zinc-300 dark:bg-zinc-900" : "border-zinc-200 bg-white hover:border-zinc-400 dark:border-zinc-800 dark:bg-zinc-900"}`}>
-      <div className="flex items-center justify-between gap-2 text-xs text-zinc-500"><span>{h.competitor} · {h.category}</span><span>{h.evidence_for} for · {h.evidence_against} against</span></div>
+      <div className="flex items-center justify-between gap-2 text-xs text-zinc-500">
+        <span>{h.competitor} · {h.category}{h.replay && <> <Badge tone="synthetic">Replay</Badge></>}{h.synthetic && <> <Badge tone="synthetic">Synthetic</Badge></>}</span>
+        <span>{h.evidence_for} for · {h.evidence_against} against</span>
+      </div>
       <div className="mt-1 text-sm font-medium leading-snug">{h.statement}</div>
       <div className="mt-2 flex items-center gap-2"><Badge tone={STATUS_TONE[h.status]}>{h.status}</Badge><span className="text-xs tabular-nums">{pct(h.confidence)}</span><div className="flex-1"><ConfidenceBar value={h.confidence} /></div></div>
     </button>

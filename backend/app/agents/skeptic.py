@@ -46,14 +46,20 @@ def challenge(db: Session, hyp: Hypothesis, ctx: ToolContext, now: datetime) -> 
         # citations must come from the tool output, otherwise they are dropped
         cited = [sid for sid in (v.cited_signal_ids if v else []) if sid in ctx.seen_signal_ids]
         urls = [u for u in (v.cited_urls if v else []) if u in ctx.seen_urls]
+        verdict = v.verdict if v else "inconclusive"
+        note = ""
+        if verdict != "inconclusive" and not r.items:
+            # Absence of evidence isn't evidence: an empty, failed or disabled test can't support OR refute anything.
+            # (The model refuted alternatives on "no matching signals" despite the prompt saying so.)
+            verdict, note = "inconclusive", f" [verdict '{v.verdict}' overridden: the test returned no data]"
         c = SkepticChallenge(
             hypothesis_id=hyp.id, alternative=a.alternative,
             discriminating_test=(f"{a.discriminating_test.tool}({a.discriminating_test.args}) | favours alternative if: "
                                  f"{a.discriminating_test.favors_alternative_if} | favours hypothesis if: "
                                  f"{a.discriminating_test.favors_hypothesis_if}"),
-            test_result=(v.test_result if v else f"no verdict produced; raw output: {r.text[:300]}")
+            test_result=(v.test_result if v else f"no verdict produced; raw output: {r.text[:300]}") + note
                         + (f"\nsources: {', '.join(urls)}" if urls else ""),
-            verdict=v.verdict if v else "inconclusive", evidence_ids=cited, created_at=now)
+            verdict=verdict, evidence_ids=cited, created_at=now)
         db.add(c)
         out.append(c)
     ctx.calls.clear()
