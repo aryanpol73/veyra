@@ -13,11 +13,13 @@ Keys (set whichever you have; every one is optional, and more keys = more free c
   OLLAMA_API_KEY                                           ollama.com (cloud models need credits)
   OLLAMA_LOCAL=true                                        a local `ollama serve`, unlimited and offline
 
+OpenRouter's free list changes often, so "@free" in a chain means "the best currently-free models" (looked up live).
 Override the order with LLM_STRONG_CHAIN / LLM_FAST_CHAIN, e.g. "groq:openai/gpt-oss-120b,mistral:mistral-medium-latest".
 """
 from __future__ import annotations
 
 import logging
+import re
 import threading
 import time
 from collections import deque
@@ -41,10 +43,10 @@ PROVIDERS: dict[str, dict] = {
 # Ordered by quality for the role, interleaving providers so one provider's outage doesn't stall a run.
 DEFAULT_CHAINS: dict[str, list[tuple[str, str]]] = {
     "strong": [("groq", "openai/gpt-oss-120b"), ("mistral", "mistral-medium-latest"), ("gemini", "gemini-flash-latest"),
-               ("groq", "qwen/qwen3.8-27b"), ("openrouter", "openai/gpt-oss-120b:free"), ("ollama_cloud", "gpt-oss:120b"),
+               ("groq", "qwen/qwen3.8-27b"), ("openrouter", "@free"), ("ollama_cloud", "gpt-oss:120b"),
                ("ollama_local", "llama3.1:8b")],
     "fast": [("groq", "openai/gpt-oss-20b"), ("mistral", "mistral-small-latest"), ("gemini", "gemini-flash-lite-latest"),
-             ("groq", "qwen/qwen3.8-27b"), ("openrouter", "openai/gpt-oss-20b:free"), ("ollama_cloud", "gpt-oss:20b"),
+             ("groq", "qwen/qwen3.8-27b"), ("openrouter", "@free"), ("ollama_cloud", "gpt-oss:20b"),
              ("ollama_local", "llama3.1:8b")],
 }
 
@@ -96,6 +98,39 @@ def _parse_chain(spec: str) -> list[tuple[str, str]]:
     return out
 
 
+# ---------------- OpenRouter: which models are free changes often, so ask its public catalogue ----------------
+_OR_CACHE: dict = {"at": 0.0, "models": []}
+_OR_TTL = 6 * 3600
+REPUTABLE = ("google/", "nvidia/", "meta-llama/", "mistralai/", "qwen/", "deepseek/", "moonshotai/", "z-ai/", "openai/",
+             "microsoft/", "cohere/")
+# tiny or code-only models; sizes need a boundary so "31b" isn't mistaken for "1b"
+_TOO_SMALL = re.compile(r"(?<![\d.])(?:1\.7|1|2|3)b\b|nano|tiny|mini|-code|coder", re.I)
+
+
+def openrouter_free_models(role: str, limit: int = 2) -> list[str]:
+    """Current ':free' model ids from openrouter.ai/api/v1/models, best first for the role (cached 6 h)."""
+    import httpx
+
+    now = time.time()
+    if now - _OR_CACHE["at"] > _OR_TTL:
+        try:
+            data = httpx.get("https://openrouter.ai/api/v1/models", timeout=8).json().get("data", [])
+            _OR_CACHE.update(at=now, models=[m for m in data if str(m.get("id", "")).endswith(":free")])
+        except Exception as e:  # noqa: BLE001 - offline: just no OpenRouter endpoints this time
+            log.warning("couldn't list OpenRouter free models: %s", e)
+            _OR_CACHE.update(at=now - _OR_TTL + 600, models=_OR_CACHE["models"])  # retry in 10 min
+    strong_words, fast_words = ("ultra", "super", "large", "pro", "31b", "70b", "120b", "405b"), ("lightning", "flash", "lite", "small", "a4b", "26b", "8b")
+
+    def score(m: dict) -> tuple:
+        mid = m["id"].lower()
+        words = strong_words if role == "strong" else fast_words
+        return (mid.startswith(REPUTABLE), "response_format" in (m.get("supported_parameters") or []),
+                any(w in mid for w in words), m.get("context_length") or 0)
+
+    pool_ = [m for m in _OR_CACHE["models"] if not _TOO_SMALL.search(m["id"])]
+    return [m["id"] for m in sorted(pool_, key=score, reverse=True)[:limit]]
+
+
 def chain(role: str) -> list[Endpoint]:
     """Endpoints for a role that have credentials, in order."""
     s = get_settings()
@@ -104,8 +139,15 @@ def chain(role: str) -> list[Endpoint]:
     legacy = s.llm_strong if role == "strong" else s.llm_fast  # older single-provider config goes first
     if legacy and not spec and s.llm_provider in PROVIDERS:
         pairs = [(s.llm_provider, legacy)] + [p for p in pairs if p != (s.llm_provider, legacy)]
+    expanded = []
+    for provider, model in pairs:  # "@free" = whatever OpenRouter lists as free right now
+        if provider == "openrouter" and model == "@free":
+            if provider_key("openrouter"):
+                expanded += [("openrouter", m) for m in openrouter_free_models(role)]
+        else:
+            expanded.append((provider, model))
     out, seen = [], set()
-    for provider, model in pairs:
+    for provider, model in expanded:
         key = provider_key(provider)
         if not key or (provider, model) in seen:
             continue

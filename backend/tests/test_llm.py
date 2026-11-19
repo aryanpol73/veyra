@@ -207,3 +207,27 @@ def test_chain_uses_only_providers_with_keys(monkeypatch):
     monkeypatch.setattr(s, "llm_fast_chain", "mistral:mistral-small-latest,bogus,gemini:gemini-flash-lite-latest")
     assert [e.name for e in pool.chain("fast")] == ["mistral:mistral-small-latest"]  # gemini has no key; bogus ignored
     pool.reset()
+
+
+def test_openrouter_free_models_are_discovered_and_ranked(monkeypatch):
+    import time as _t
+
+    pool._OR_CACHE.update(at=_t.time(), models=[
+        {"id": "liquid/lfm-3-1.7b:free", "supported_parameters": ["response_format"], "context_length": 262144},
+        {"id": "google/gemma-4-31b-it:free", "supported_parameters": ["response_format"], "context_length": 262144},
+        {"id": "nvidia/nemotron-3-ultra-550b-a55b:free", "supported_parameters": [], "context_length": 1000000},
+        {"id": "google/gemma-4-26b-a4b-it:free", "supported_parameters": ["response_format"], "context_length": 262144},
+        {"id": "cohere/north-mini-code:free", "supported_parameters": [], "context_length": 256000},
+    ])
+    strong = pool.openrouter_free_models("strong")
+    fast = pool.openrouter_free_models("fast")
+    assert strong == ["google/gemma-4-31b-it:free", "google/gemma-4-26b-a4b-it:free"]  # JSON-capable first, no tiny/code
+    assert fast[0] == "google/gemma-4-26b-a4b-it:free"
+    pool._OR_CACHE.update(at=0.0, models=[])
+
+
+def test_too_small_filter_respects_size_boundaries():
+    keep = ["google/gemma-4-31b-it:free", "qwen/qwen-32b:free", "google/gemma-4-26b-a4b-it:free"]
+    drop = ["liquid/lfm-3-1.7b:free", "meta-llama/llama-3b:free", "nvidia/nemotron-nano:free", "cohere/north-mini-code:free"]
+    assert not any(pool._TOO_SMALL.search(m) for m in keep)  # regression: "31b" once matched "1b"
+    assert all(pool._TOO_SMALL.search(m) for m in drop)
