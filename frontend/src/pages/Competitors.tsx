@@ -13,6 +13,30 @@ export default function Competitors() {
   const [feeds, setFeeds] = useState("");
   const [formErr, setFormErr] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const [discovering, setDiscovering] = useState(false);
+  const [notes, setNotes] = useState<string[]>([]);
+
+  async function discover() {
+    if (!form.domain.trim()) return;
+    setDiscovering(true);
+    setFormErr(null);
+    setNotes([]);
+    try {
+      const d = await api.get<{
+        domain: string; name: string | null; pricing_url: string | null; product_urls: string[]; feed_urls: string[];
+        careers_provider: "greenhouse" | "lever" | null; careers_token: string | null; news_query: string | null; notes: string[];
+      }>(`/discover?domain=${encodeURIComponent(form.domain)}`);
+      setForm({ ...form, domain: d.domain, name: form.name || d.name || "", pricing_url: d.pricing_url ?? "",
+                news_query: d.news_query ?? "", careers_provider: d.careers_provider, careers_token: d.careers_token ?? "" });
+      setUrls(d.product_urls.join(" "));
+      setFeeds(d.feed_urls.join(" "));
+      setNotes(d.notes);
+    } catch (e) {
+      setFormErr(String((e as Error).message));
+    } finally {
+      setDiscovering(false);
+    }
+  }
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -29,6 +53,7 @@ export default function Competitors() {
       setForm(blank);
       setUrls("");
       setFeeds("");
+      setNotes([]);
       setOpen(false);
       reload();
     } catch (e) {
@@ -54,8 +79,19 @@ export default function Competitors() {
       {open && (
         <Card title="New competitor">
           <form onSubmit={submit} className="grid gap-3 md:grid-cols-2">
+            <div className="text-sm md:col-span-2">
+              Domain
+              <div className="flex gap-2">
+                <input required placeholder="any company, e.g. duolingo.com" className={inputCls} value={form.domain} onChange={set("domain")}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); discover(); } }} />
+                <button type="button" className={btnCls} onClick={discover} disabled={discovering || !form.domain.trim()}>
+                  {discovering ? "Discovering…" : "Discover"}
+                </button>
+              </div>
+              <p className="mt-1 text-xs text-zinc-500">Type a domain and press Discover: Veyra visits the site politely and fills in the fields below. Review them before saving.</p>
+              {notes.length > 0 && <ul className="mt-1 list-disc pl-5 text-xs text-zinc-600 dark:text-zinc-400">{notes.map((n) => <li key={n}>{n}</li>)}</ul>}
+            </div>
             <label className="text-sm">Name<input required className={inputCls} value={form.name} onChange={set("name")} /></label>
-            <label className="text-sm">Domain<input required placeholder="example.com" className={inputCls} value={form.domain} onChange={set("domain")} /></label>
             <label className="text-sm">Pricing URL<input className={inputCls} value={form.pricing_url ?? ""} onChange={set("pricing_url")} /></label>
             <label className="text-sm">News query<input className={inputCls} value={form.news_query ?? ""} onChange={set("news_query")} /></label>
             <label className="text-sm">Careers provider

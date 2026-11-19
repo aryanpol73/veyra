@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from contextlib import asynccontextmanager
 from datetime import datetime
 
@@ -502,3 +503,14 @@ def overview(db: Session = Depends(get_db)):
         "top_hypotheses": [_hyp_summary(h, n, 0, 0) for h, n in top],
         "hot_signals": [{**SignalOut.model_validate(s).model_dump(), "competitor": n} for s, n in hot],
     }
+
+
+# ---------- auto-discovery ----------
+@app.get("/discover")  # not under /competitors: the earlier /competitors/{cid} route would capture it
+def discover_competitor(domain: str):
+    """Suggest pricing page, product/changelog pages, feeds and job board for a domain (user reviews before saving)."""
+    from app.collectors.discover import discover, normalize_domain, to_dict
+
+    if not re.fullmatch(r"[a-z0-9.-]+\.[a-z]{2,}", normalize_domain(domain)):
+        raise HTTPException(422, "give a domain like example.com")
+    return to_dict(discover(domain))

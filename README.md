@@ -86,7 +86,7 @@ and the agents are skipped.
 | **Overview** | KPIs, top hypotheses, high-priority signals, and alerts with **Useful / Noise** buttons |
 | **Hypotheses** (flagship) | Status and confidence band, evidence for and against with links and weights, belief-over-time chart, skeptic alternatives with the test each ran and its verdict, investigation log, predictions |
 | **Intelligence Feed** | Typed signals filtered by competitor, category and priority; **Run cycle now**; badges for Early Signal, Removal, Synthetic and Replay |
-| **Competitors** | Add or remove competitors and see their tracked sources |
+| **Competitors** | Track **any company in any field**: type its domain and press **Discover**. Veyra finds the pricing page, changelog, RSS feeds and Greenhouse/Lever job board for you to review. The 3 seeded companies are only demo data; delete them freely. |
 | **Ask Veyra** | Chat grounded in the database, with cited sources and belief timelines |
 | **Evaluation** | Backtest metrics, calibration with Wilson intervals, the contamination-mode switch and a caveat banner |
 | **Reports** | Archive of daily briefs: generate one and read it |
