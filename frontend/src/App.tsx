@@ -39,7 +39,7 @@ export default function App() {
   const [dark, toggle] = useTheme();
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
-      <aside className="border-b border-zinc-200 bg-white md:w-56 md:border-b-0 md:border-r dark:border-zinc-800 dark:bg-zinc-900">
+      <aside className="shrink-0 border-b border-zinc-200 bg-white md:w-56 md:border-b-0 md:border-r dark:border-zinc-800 dark:bg-zinc-900">
         <div className="flex items-center justify-between p-4">
           <div>
             <div className="text-lg font-bold tracking-tight">VEYRA</div>
@@ -66,7 +66,7 @@ export default function App() {
           ))}
         </nav>
       </aside>
-      <main className="mx-auto w-full max-w-6xl flex-1 p-4 md:p-6">
+      <main className="mx-auto w-full min-w-0 max-w-6xl flex-1 p-4 md:p-6">
         <Routes>
           <Route path="/" element={<Overview />} />
           <Route path="/competitors" element={<Competitors />} />
