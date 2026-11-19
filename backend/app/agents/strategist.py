@@ -113,13 +113,17 @@ def _advance_cursor(db: Session, comp: Competitor, max_id: int, now: datetime, n
     db.flush()
 
 
+MERGEABLE_KINDS = ("news", "blog")  # only reports ABOUT events can be duplicates of each other
+
+
 def merge_same_event(db: Session, shown: dict[int, Signal], groups: list[list[int]]) -> int:
-    """Give signals the strategist says report one event a shared origin_group (independence weighting).
+    """Give news/blog items the strategist says report one event a shared origin_group (independence weighting).
     Deterministic Jaccard grouping runs at ingest; this catches paraphrased headlines it misses.
-    Only signals the strategist was shown, and only news/blog/page items, can be merged."""
+    Direct observations (page diffs, job boards, CT logs, sitemaps) are never merged: each is its own
+    evidence, and letting the LLM merge them would let it erase independence (caught by the synthetic test)."""
     merged = 0
     for g in groups:
-        sigs = [shown[i] for i in dict.fromkeys(g) if i in shown and shown[i].category in ("market", "product", "pricing")]
+        sigs = [shown[i] for i in dict.fromkeys(g) if i in shown and (shown[i].raw or {}).get("kind") in MERGEABLE_KINDS]
         if len(sigs) < 2:
             continue
         sigs.sort(key=lambda s: s.observed_at)

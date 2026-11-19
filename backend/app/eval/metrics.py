@@ -119,8 +119,9 @@ def evaluate(db: Session, events: list[GTEvent], window: tuple[datetime, datetim
              threshold: float = THRESHOLD, grace_days: int = GRACE_DAYS) -> Metrics:
     start, end = window
     in_window = [e for e in events if start <= _day(e.public_date) <= end]
-    comps = {c.id: c.name for c in db.scalars(select(Competitor))}
-    hyps = db.scalars(select(Hypothesis)).all()
+    # synthetic test data lives in the same replay DB: never score it as real
+    comps = {c.id: c.name for c in db.scalars(select(Competitor)) if not (c.notes or "").startswith("SYNTHETIC")}
+    hyps = [h for h in db.scalars(select(Hypothesis)) if not h.synthetic and h.competitor_id in comps]
     hist: dict[int, list[BeliefHistory]] = {}
     for b in db.scalars(select(BeliefHistory).order_by(BeliefHistory.ts, BeliefHistory.id)):
         hist.setdefault(b.hypothesis_id, []).append(b)
@@ -161,7 +162,8 @@ def evaluate(db: Session, events: list[GTEvent], window: tuple[datetime, datetim
     brier_peak = statistics.mean((p - y) ** 2 for p, y in ys_peak) if ys_peak else None
     calib, calib_peak = _bins(ys), _bins(ys_peak)
 
-    preds = [p for p in db.scalars(select(Prediction)) if p.outcome in ("hit", "miss")]
+    real_ids = {h.id for h in hyps}
+    preds = [p for p in db.scalars(select(Prediction)) if p.outcome in ("hit", "miss") and p.hypothesis_id in real_ids]
     brier_p = statistics.mean((p.confidence_at_creation - (1 if p.outcome == "hit" else 0)) ** 2 for p in preds) if preds else None
 
     return Metrics(

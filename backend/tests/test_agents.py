@@ -99,6 +99,19 @@ def test_strategist_same_event_merge(db):
     assert b.origin_group == "news:a" and b.raw["origin_group_before_merge"] == "news:b"
 
 
+def test_direct_observations_are_never_merged(db):
+    """Regression (synthetic injection test): the strategist merged a pricing-page diff, a docs diff and a CFO
+    quote into one origin group, erasing their independence."""
+    from app.agents.strategist import merge_same_event
+
+    p1, p2 = _sig(db, 1, "page:1"), _sig(db, 2, "page:2")
+    p1.raw, p2.raw = {"kind": "page"}, {}
+    n = _sig(db, 3, "news:3")
+    n.raw = {"kind": "news"}
+    assert merge_same_event(db, {1: p1, 2: p2, 3: n}, [[1, 2, 3]]) == 0
+    assert (p1.origin_group, p2.origin_group, n.origin_group) == ("page:1", "page:2", "news:3")
+
+
 def test_predictions_register_and_resolve(db):
     from app.agents import judge
 
@@ -163,6 +176,11 @@ def test_lenient_contracts_still_guard_evidence():
     from app.agents.schemas import InvestigatorStep
 
     assert InvestigatorStep.model_validate({"observation": "done"}).action == "stop"
+    step = InvestigatorStep.model_validate({"findings": [{"summary": "no relevant results", "stance": "neutral",
+                                                          "relevance": 0, "url": ""},
+                                                         {"summary": "role exists", "stance": "supports",
+                                                          "relevance": 0.5, "url": "https://x.example/a"}]})
+    assert [f.url for f in step.findings] == ["https://x.example/a"]
     p = TestablePrediction(claim="Acme launches an AI thing", horizon_days=30, signal_types=["rumour", "feature_launch"], keywords=["AI"])
     assert p.signal_types == ["feature_launch"]
     with pytest.raises(ValidationError):  # citations are still mandatory

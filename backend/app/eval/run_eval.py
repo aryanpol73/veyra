@@ -119,7 +119,7 @@ def synthetic_injection() -> dict:
     out = {}
     with session_scope() as db, audit_into(db):
         for name, sigs in cases.items():
-            comp = Competitor(name=f"SynthCo-{name}", domain=f"{name.replace('_', '-')}.synthco.example", product_urls=[],
+            comp = Competitor(name=f"SynthCo-{name}-{datetime.now(timezone.utc):%H%M%S}", domain=f"{name.replace('_', '-')}.synthco.example", product_urls=[],
                               notes="SYNTHETIC test competitor")
             db.add(comp)
             db.flush()
@@ -127,7 +127,7 @@ def synthetic_injection() -> dict:
                 db.add(Signal(competitor_id=comp.id, type=typ, category=cat, summary=summary,
                               evidence_url=f"https://{comp.domain}/{i}", observed_at=now - timedelta(days=3 - i),
                               detected_at=now, origin_group=f"{comp.id}:{group}", event_confidence=0.95, priority="high",
-                              raw={"kind": "blog" if group.startswith("page") else "news"}, synthetic=True))
+                              raw={"kind": "page" if group.startswith("page") else "news"}, synthetic=True))
             db.flush()
             r = run_strategist(db, comp, now)
             for hid in r["new_hypothesis_ids"]:
@@ -138,8 +138,10 @@ def synthetic_injection() -> dict:
             out[name] = {"hypotheses": [{"statement": h.statement, "confidence": h.confidence} for h in hyps],
                          "max_confidence": max([h.confidence for h in hyps] or [0.0])}
     ind, dup = out["independent"]["max_confidence"], out["one_press_release_x3"]["max_confidence"]
-    out["expectation"] = "independent evidence should score higher than one press release counted three times"
-    out["passed"] = bool(ind > dup > 0)
+    out["expectation"] = ("independent evidence should score clearly higher (by >= 0.05) than one press release "
+                          "counted three times")
+    out["margin"] = round(ind - dup, 4)
+    out["passed"] = bool(dup > 0 and ind - dup >= 0.05)
     return out
 
 
@@ -152,8 +154,7 @@ def _save(live_db_url: str, mode: str, result: dict) -> None:
     eng = create_engine(live_db_url)
     Base.metadata.create_all(eng)
     with Session(eng) as db:
-        run = EvalRun(config=result["config"], metrics={k: v for k, v in result.items() if k not in ("events", "hypotheses")}
-                      | {"hypotheses": result["hypotheses"]}, contamination_mode=mode)
+        run = EvalRun(config=result["config"], metrics=dict(result), contamination_mode=mode)
         db.add(run)
         db.flush()
         for e in result["events"]:

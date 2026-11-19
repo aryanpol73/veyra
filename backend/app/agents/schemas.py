@@ -82,6 +82,15 @@ class InvestigatorStep(BaseModel):
     plan: list[str] = Field(default_factory=list, max_length=4)  # sentences, e.g. "Check jobs for ML infra roles"
     observation: str = Field(default="", max_length=500)  # what the last tool result changed
     findings: list[Finding] = Field(default_factory=list, max_length=6)
+
+    @field_validator("findings", mode="before")
+    @classmethod
+    def drop_uncited(cls, v):
+        """A finding citing nothing (e.g. "no relevant results") is dropped on its own instead of failing the
+        whole step; cited findings are still validated (and checked against tool output later)."""
+        if not isinstance(v, list):
+            return v
+        return [f for f in v if not isinstance(f, dict) or f.get("signal_id") is not None or f.get("url")]
     action: Literal[USABLE_TOOLS + ("stop",)] = "stop"  # type: ignore[valid-type]  # omitted action = stop
     args: dict[str, Any] = Field(default_factory=dict)
     stop_reason: str | None = None

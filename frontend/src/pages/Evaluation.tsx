@@ -140,7 +140,7 @@ export default function Evaluation() {
                 <tr><td>Recall</td><td>{fmt(m.recall)}</td></tr>
                 <tr><td>False-positive rate (detected hypotheses matching no event)</td><td>{fmt(m.fp_rate)}</td></tr>
                 <tr><td>False alarms per competitor-month</td><td>{fmt(m.false_alarms_per_competitor_month)}</td></tr>
-                <tr><td>Lead times (days; positive = before announcement)</td><td>{m.lead_days.length ? m.lead_days.join(", ") : "n/a"}</td></tr>
+                <tr><td>Lead times (days; positive = before announcement)</td><td>{m.lead_days?.length ? m.lead_days.join(", ") : "n/a"}</td></tr>
                 <tr><td>Early detections (lead &gt; 0)</td><td>{m.early_detections}</td></tr>
                 <tr><td>Brier score, hypotheses (final confidence vs matched)</td><td>{fmt(m.brier_hypotheses, 3)}</td></tr>
                 <tr><td>Brier score, predictions (n resolved = {m.n_predictions_resolved})</td><td>{fmt(m.brier_predictions, 3)}</td></tr>
@@ -149,10 +149,10 @@ export default function Evaluation() {
           </Card>
 
           <Card title="Calibration (3 bins, Wilson 95% intervals)">
-            <CalibrationChart bins={m.calibration} />
+            <CalibrationChart bins={m.calibration ?? []} />
             <table className="mt-2 w-full text-xs">
               <thead className="text-left text-zinc-500"><tr><th>bin</th><th>n</th><th>hits</th><th>mean conf</th><th>observed</th><th>Wilson 95%</th></tr></thead>
-              <tbody className="tabular-nums">{m.calibration.map((b) => (
+              <tbody className="tabular-nums">{(m.calibration ?? []).map((b) => (
                 <tr key={b.bin} className="border-t border-zinc-200 dark:border-zinc-800"><td className="py-0.5">{b.bin} [{b.range[0]}, {b.range[1]})</td><td>{b.n}</td><td>{b.hits}</td><td>{fmt(b.mean_confidence)}</td><td>{fmt(b.observed_rate)}</td>
                   <td>{b.wilson_95 ? `[${fmt(b.wilson_95[0])}, ${fmt(b.wilson_95[1])}]` : "n/a"}</td></tr>))}</tbody>
             </table>
@@ -175,7 +175,7 @@ export default function Evaluation() {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[640px] text-sm">
                 <thead className="text-left text-xs text-zinc-500"><tr><th></th><th>announced</th><th>competitor</th><th>event</th><th>detected</th><th className="text-right">lead</th></tr></thead>
-                <tbody>{m.events.map((e) => (
+                <tbody>{(m.events ?? []).map((e) => (
                   <tr key={e.id} className="border-t border-zinc-200 align-top dark:border-zinc-800">
                     <td className="py-1 pr-2">{e.is_true_positive ? <Badge tone="ok">TP</Badge> : <Badge tone="muted">missed</Badge>}</td>
                     <td className="whitespace-nowrap pr-2">{e.public_date}</td>

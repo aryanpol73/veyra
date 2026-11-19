@@ -81,6 +81,25 @@ cd backend
   (independent evidence should beat one press release counted three times); it is labelled synthetic and measures nothing
   about real-world accuracy.
 
+### Pilot results (masked mode, run #3, 2026-11-19)
+
+| Metric | Value | n |
+|---|---|---|
+| Precision | 0.13 | 15 detected hypotheses |
+| Recall | 0.13 | 15 events |
+| Lead time (true positives) | +90 d, +60 d | 2 |
+| False alarms per competitor-month | 0.66 | |
+| Brier (hypotheses, final confidence) | 0.405 | 18 |
+| Brier (resolved predictions) | 0.335 | 18 |
+| Calibration, high bin (>= 0.7) | 1/8 hits, Wilson 95% [0.02, 0.47] | 8 |
+
+**Reading this honestly:** Veyra caught Vercel's enterprise commitment contracts and its AI Gateway build-out months early. It
+missed most specific launches (Vercel CI, Figma Motion, Specs): its hypotheses tend to be broad themes ("building a developer
+platform", "expanding AI tooling") that the pre-declared keywords don't match, and high-confidence hypotheses are mostly not
+specific events, so scores are **overconfident and uncalibrated**. This run is flagged *degraded*: 1 strategist call hit Groq's
+daily cap on the final step. The synthetic injection test then exposed a flaw (the strategist could merge independent page
+diffs into one origin group); it's fixed and regression-tested, and **both modes must be re-run** to report post-fix numbers.
+
 ## Data sources (all public, robots.txt respected, >=2 s per host, cached)
 
 | Source | Endpoint | Notes |
@@ -99,6 +118,7 @@ Without an LLM key, signals are labelled by transparent rules and badged "rule-c
 - Free-tier Groq rate limits constrain how many agent steps run per cycle (about 15-27k tokens per competitor per cycle).
 - Groq's model lineup changes; if a model 404s, set `LLM_STRONG` / `LLM_FAST` in `.env`.
 - Hiring-spike z-scores come from posting dates on the *current* board; filled roles disappear, so older weeks are under-counted.
+- Groq's free tier allows 200k tokens/day per model; one masked backtest uses ~230k, so a full masked + unmasked pair needs 2 days.
 - The evaluation is a pilot: 15 events, one labeller, monthly resolution (lead times are +/- ~30 days), keyword matching.
 - Masking hides names, not facts; a model may still recognise a company from product details.
 - A "new subdomain" on the first run means every live certificate for it is < 21 days old; renewals can occasionally look new.

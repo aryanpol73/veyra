@@ -123,3 +123,18 @@ def test_metrics_lead_time_precision_recall(db):
     assert m.n_detected == 2 and m.precision == 0.5 and m.fp_rate == 0.5
     high = next(b for b in m.calibration if b["bin"] == "high")
     assert high["n"] == 1 and high["hits"] == 1
+
+
+def test_metrics_ignore_synthetic_data(db):
+    from app.db.models import BeliefHistory, Competitor, Hypothesis
+    from app.eval.metrics import evaluate
+
+    db.add(Competitor(id=9, name="SynthCo-x", domain="s.example", product_urls=[], notes="SYNTHETIC test competitor"))
+    db.flush()
+    db.add_all([Hypothesis(id=1, competitor_id=1, statement="real", category="market", confidence=0.6, prior=0.2),
+                Hypothesis(id=2, competitor_id=9, statement="fake", category="market", confidence=0.6, prior=0.2, synthetic=True)])
+    db.flush()
+    db.add_all([BeliefHistory(hypothesis_id=i, ts=MAR, confidence=0.6, delta=0.4, reason="x") for i in (1, 2)])
+    db.commit()
+    m = evaluate(db, [], (JAN, APR))
+    assert m.n_hypotheses == 1 and m.n_detected == 1
