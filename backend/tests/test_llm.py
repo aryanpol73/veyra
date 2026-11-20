@@ -173,6 +173,16 @@ def test_resting_endpoint_is_skipped_on_the_next_call(fake):
     assert seen == ["a", "b", "b"]  # the capped one isn't retried until it resets
 
 
+def test_empty_reply_fails_over_without_using_the_retry(fake):
+    chain = [ep("gemini:a"), ep("groq:b")]
+    seen = []
+    c = fake(["", '{"nope": 1}', '{"ok": true}'], fast=chain)
+    orig = c._create
+    c.chat.completions.create = lambda **kw: (seen.append(kw["model"]), orig(**kw))[1]
+    assert _call() == Out(ok=True) and seen == ["a", "b", "b"]  # empty -> next endpoint; validation retry still available
+    assert not pool.available(chain[0])
+
+
 def test_needs_credits_and_unknown_model_park_the_endpoint(fake):
     chain = [ep("ollama_cloud:x"), ep("openrouter:y"), ep("groq:z")]
     fake([_status(402, "Add usage credits"), _status(404, "model not found"), '{"ok": true}'], fast=chain)

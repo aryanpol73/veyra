@@ -177,6 +177,10 @@ def complete_json(
                     budget.used += n
                     budget.calls += 1
             raw = unmask((resp.choices[0].message.content or "") if resp.choices else "")
+            if not raw.strip():  # empty reply (overloaded provider, length cut-off): fail over, don't burn the retry
+                pool.cool_down(ep, 300, "empty reply")
+                last_err = f"empty reply from {ep.name}"
+                continue
             parsed = schema.model_validate_json(_wrap_bare_list(_extract_json(raw), schema))
             meta = {"user": user[:4000]}
             if ep is not eps[0]:

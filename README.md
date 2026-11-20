@@ -12,7 +12,7 @@
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
 ![PWA](https://img.shields.io/badge/PWA-installable-5A0FC8?logo=pwa&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-96%20passing-2EA043)
+![Tests](https://img.shields.io/badge/tests-97%20passing-2EA043)
 ![Free tier](https://img.shields.io/badge/LLM-free%20tiers%20only-F5B544)
 
 </div>
@@ -155,7 +155,7 @@ SQLite on a persistent volume.
 | PWA | vite-plugin-pwa (Workbox), Web Push (VAPID via pywebpush) |
 | Storage | SQLite (Postgres-compatible schema) |
 | Deployment | Docker (multi-stage, non-root, read-only), Docker Compose, Caddy (automatic HTTPS) |
-| Tests | pytest (96 tests: no network, no LLM) |
+| Tests | pytest (97 tests: no network, no LLM) |
 
 ## Quick start (local)
 
@@ -413,7 +413,7 @@ veyra/
 │   │   ├── eval/              dataset, replay, metrics, run_eval, ground_truth.yaml, import_replay
 │   │   ├── reports/brief.py   daily brief
 │   │   └── db/                models, session, sources
-│   └── tests/                 96 tests
+│   └── tests/                 97 tests
 ├── frontend/                  React + Vite + Tailwind PWA (pages, components, service-worker push handlers)
 ├── data/replay/               frozen Wayback dataset (committed); runtime data is git-ignored
 ├── deploy/                    Caddyfile, setup-ubuntu.sh
@@ -429,7 +429,7 @@ cd backend
 .venv/Scripts/python -m pytest -q
 ```
 
-96 tests, with no network and no LLM calls. They cover:
+97 tests, with no network and no LLM calls. They cover:
 - the belief engine
 - change detection (noise filter, line-paired prices, boilerplate stripping)
 - agent guardrails (citations, merges, skeptic rules)
